@@ -25,6 +25,7 @@ Token :: struct {
 }
 
 
+// TODO change NUMBER to INT
 Kind :: enum {
     LET,
     FN,
@@ -95,7 +96,7 @@ position_to_string :: proc(pos: Position) -> string {
     out: strings.Builder
     strings.builder_init(&out)
 
-    fmt.sbprintf(&out ,"./%s:%d:%d \n", pos.file_path, pos.row, pos.col) 
+    fmt.sbprintf(&out ,"%s(%d:%d)", pos.file_path, pos.row, pos.col) 
     return strings.to_string(out)
 }
 
@@ -150,11 +151,6 @@ empty :: proc(l: ^Lexer) -> bool {
 }
 
 next_char :: proc(l: ^Lexer) -> bool {
-    // fmt.printf("NEXTCHAR\n")
-    // fmt.printf("char: %c\n", curr_char(l))
-    // fmt.printf("curr: %d\n", l.curr)
-    // fmt.printf("next: %d\n", l.next)
-    // fmt.printf("len: %d\n", len(l.text))
     if  l.next >= len(l.text) {
         return false
     }
@@ -200,9 +196,9 @@ peek_char :: proc(l: ^Lexer) -> u8 {
 //Assume curr_char(l) == "\""
 lex_string :: proc(l:^Lexer) -> Token {
 
-    assert(curr_char(l) == '\"', fmt.aprintf("%s lexing error, this should be \"", to_string((l.pos))))
+    assert(curr_char(l) == '\"', fmt.aprintf("%s Error: lexing error, this should be \"", to_string((l.pos))))
     if !next_char(l) {
-            assert(false, fmt.aprintf("%s ERROR: unexpected end of string %s", to_string((l.pos))))
+            assert(false, fmt.aprintf("%s Error: unexpected end of string %s", to_string((l.pos))))
     }
 
     tok: strings.Builder
@@ -235,7 +231,7 @@ lex_string :: proc(l:^Lexer) -> Token {
 lex_identifier :: proc(l: ^Lexer) -> Token {
 
     curr := curr_char(l)
-    assert(curr == '_' || curr == '-' || alphanumeric(curr_char(l)), fmt.aprintf("%s lexing error", to_string((l.pos))))
+    assert(curr == '_' || curr == '-' || alphanumeric(curr_char(l)), fmt.aprintf("%s Error: lexing error", to_string((l.pos))))
     tok: strings.Builder
     strings.builder_init(&tok)
 
@@ -271,7 +267,7 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
 
 lex_number :: proc(l: ^Lexer) -> Token {
     curr := curr_char(l)
-    assert(curr == '.' || numeric(curr), fmt.aprintf("%s lexing error", to_string((l.pos))))
+    assert(curr == '.' || numeric(curr), fmt.aprintf("%s Error: lexing error", to_string((l.pos))))
     tok: strings.Builder
     strings.builder_init(&tok)
     has_dot := false
@@ -328,7 +324,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             case '=': {
                 token = Token{ 
                     kind = EQUALS,
-                    literal = string([]u8{curr_char(l)}),
+                    literal = "=",
                     pos = l.pos
                 }
                 next_char(l)
@@ -337,7 +333,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             case '+': {
                 token = Token{ 
                     kind = PLUS,
-                    literal = string([]u8{curr_char(l)}),
+                    literal = "+",
                     pos = l.pos
                 }
                 next_char(l)
@@ -346,7 +342,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             case '-': {
                 token = Token{ 
                     kind = MINUS        ,
-                    literal = string([]u8{curr_char(l)}),
+                    literal = "-",
                     pos = l.pos
                 }
                 next_char(l)
@@ -431,11 +427,6 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
 
             case ' ', '\n', '\t', '\r': {
                 assert(false, "SPACE leaked")
-            //     token = Token{ 
-            //     kind = COMMA ,
-            //     literal = string([]u8{curr_char(l)}),
-            //     pos = l.pos
-            // } 
             }
 
         }
@@ -443,7 +434,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
 
         append(&tokens, token)
 
-        fmt.printfln("%s", to_string(token))
+        // fmt.printfln("%s", to_string(token))
     }
 
     append(&tokens, Token{
