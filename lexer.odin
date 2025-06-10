@@ -11,7 +11,6 @@ Lexer :: struct {
     text: string,
 }
 
-
 Position :: struct {
     row: int,
     col: int,
@@ -24,8 +23,6 @@ Token :: struct {
     pos: Position,
 }
 
-
-// TODO change NUMBER to INT
 Kind :: enum {
     LET,
     FN,
@@ -34,12 +31,12 @@ Kind :: enum {
     STRING,
     DOT,
     EQUALS,       
-    NUMBER,
-    DOUBLE,
+    INT64,
+    FLOAT64,
     PLUS,
     MINUS,        
     MULTIPLY,     
-    FSLASH,       
+    DIVIDE,       
     BSLASH,       
     LPAREN,       
     RPAREN,       
@@ -64,12 +61,12 @@ kind_to_string :: proc(kind: Kind) -> string {
         case IDENT: return "IDENT"
         case DOT: return "DOT"
         case EQUALS: return "EQUALS"
-        case NUMBER: return "NUMBER"
-        case DOUBLE: return "DOUBLE"
+        case INT64: return "INT64"
+        case FLOAT64: return "FLOAT64"
         case PLUS: return "PLUS"
         case MINUS: return "MINUS"
         case MULTIPLY: return "MULTIPLY"
-        case FSLASH: return "FSLASH"
+        case DIVIDE: return "DIVIDE"
         case BSLASH: return "BSLASH"
         case LPAREN: return "LPAREN"
         case RPAREN: return "RPAREN"
@@ -92,6 +89,65 @@ kind_to_string :: proc(kind: Kind) -> string {
 
 }
 
+expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
+    if expr == nil do return "nil"
+    
+    sb: strings.Builder
+    strings.builder_init(&sb)
+    
+    // Add indentation
+    for i in 0..<indent {
+        strings.write_string(&sb, "  ")
+    }
+    
+    #partial switch expr.type {
+    case .LITERAL:
+        fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
+        
+    case .IDENTIFIER:
+        fmt.sbprintf(&sb, "Identifier(%v)", expr.value.(string))
+        
+    case .LET:
+        binding := expr.value.(Binding)
+        fmt.sbprintf(&sb, "Let(\n")
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "name: %s,\n", binding.name)
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.exp, indent+1))
+        for i in 0..<indent {
+            strings.write_string(&sb, "  ")
+        }
+        strings.write_string(&sb, ")")
+        
+    case .INFIX:
+        binop := expr.value.(Binop)
+        fmt.sbprintf(&sb, "Infix(\n")
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "op: %s,\n", to_string(binop.kind))
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "left: %s,\n", expression_to_string(binop.left, indent+1))
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "right: %s\n", expression_to_string(binop.right, indent+1))
+        for i in 0..<indent {
+            strings.write_string(&sb, "  ")
+        }
+        strings.write_string(&sb, ")")
+    }
+    
+    return strings.to_string(sb)
+}
+
+
 position_to_string :: proc(pos: Position) -> string { 
     out: strings.Builder
     strings.builder_init(&out)
@@ -112,7 +168,7 @@ token_to_string :: proc(token: Token) -> string {
     return strings.to_string(out)
 }
 
-to_string :: proc{kind_to_string, token_to_string, position_to_string}
+to_string :: proc{kind_to_string, token_to_string, position_to_string, expression_to_string}
 
 print_token :: proc(token: Token) {
     fmt.printf("%s\n", to_string(token))
@@ -154,7 +210,6 @@ next_char :: proc(l: ^Lexer) -> bool {
     if  l.next >= len(l.text) {
         return false
     }
-
     
     curr := curr_char(l)
     if curr == '\n' {
@@ -286,7 +341,7 @@ lex_number :: proc(l: ^Lexer) -> Token {
 
         curr = curr_char(l)
     }
-    kind := has_dot ? Kind.DOUBLE: Kind.NUMBER
+    kind := has_dot ? Kind.FLOAT64: Kind.INT64
 
     return Token {
         kind = kind,
@@ -348,16 +403,24 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                 next_char(l)
             } 
 
-            case '*': token = Token{ 
-                kind = MULTIPLY     ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
-            } 
+            case '*': {
+                token = Token{ 
+                    kind = MULTIPLY     ,
+                    literal = string([]u8{curr_char(l)}),
+                    pos = l.pos
+                } 
 
-            case '/': token = Token{ 
-                kind = FSLASH       ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+                next_char(l)
+            }
+
+            case '/': {
+                token = Token{ 
+                    kind = DIVIDE,
+                    literal = "/",
+                    pos = l.pos
+                }
+
+                next_char(l)
             } 
 
             case '\\': token = Token{ 
@@ -431,9 +494,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
 
         }
 
-
         append(&tokens, token)
-
         // fmt.printfln("%s", to_string(token))
     }
 
@@ -445,45 +506,3 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
     return tokens
 }
 
-
-// main :: proc() {
-//
-//     args := os.args
-//     if len(args) < 2 {
-//     fmt.println("USAGE: ./norse <source_file>")
-//     os.exit(69)
-//     }
-//     name : string
-//     file_name: string
-//     args, name = shift(args)
-//     args, file_name = shift(args)
-//
-//
-//     raw_code, ok := os.read_entire_file_from_filename(file_name)
-//     if !ok {
-//         fmt.eprintln("Failed to load the file!")
-//         return
-//     }
-//     defer delete(raw_code) 
-//
-//     lexer := Lexer{ 
-//         curr = 0,
-//         next = 0,
-//         text = string(raw_code)
-//     }
-//
-//     pos := Position{ 
-//         row = 0,
-//         col = 0,
-//         file_path = file_name,
-//     }
-//
-//     l := &lexer
-//     tokens := lex(l)
-//
-//
-//     for token in tokens {
-//        print(token)
-//     }
-//
-// }
