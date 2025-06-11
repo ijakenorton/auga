@@ -56,9 +56,26 @@ eval_div :: proc(left: Number, right: Number) -> Number {
     return i64(0) // UNREACHABLE
 }
 
+eval_numeric_ops :: proc(node: ^Expression) -> Number {
+    result : Number
+
+    switch node.kind {
+        case .LITERAL: {
+            result = literal_to_number(node)
+        }
+        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
+        case .LET: assert(false, "NOT IMPLEMENTED")
+        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
+        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
+        case .BLOCK: assert(false, "NOT IMPLEMENTED")
+        case .INFIX: assert(false, "NOT IMPLEMENTED")
+    }
+    return result
+}
+
 
 literal_to_number :: proc(node: ^Expression) -> Number {
-    assert(node.type == .LITERAL, "Must be a LITERAL to convert to NUMBER")
+    assert(node.kind == .LITERAL, "Must be a LITERAL to convert to NUMBER")
 
     result : Number
 
@@ -74,12 +91,12 @@ literal_to_number :: proc(node: ^Expression) -> Number {
 eval_infix :: proc(env: ^Environment, infix: ^Expression) -> Number {
     result : Number
     switch v in infix.value {
-        case  Binding: assert(false, "NOT IMPLMENTED")
-        case  i64: assert(false, "NOT IMPLMENTED")
-        case  f64: assert(false, "NOT IMPLMENTED")
-        case  string: assert(false, "NOT IMPLMENTED")
-        case  ^Expression: assert(false, "NOT IMPLMENTED")
-        case  Literal_Node: assert(false, "NOT IMPLMENTED")
+        case  Binding: parser_errorf(infix.pos ,false, "Expected Binop, got Binding")
+        case  i64: parser_errorf(infix.pos ,false, "Expected Binop, got i64")
+        case  f64: parser_errorf(infix.pos ,false, "Expected Binop, got f64")
+        case  string: parser_errorf(infix.pos ,false, "Expected Binop, got string")
+        case  ^Expression: parser_errorf(infix.pos ,false, "Expected Binop, got ^Expression")
+        case  Literal_Node: parser_errorf(infix.pos ,false, "Expected Binop, got Literal_Node")
         case  Binop: {
             binop := infix.value.(Binop)
             left := binop.left
@@ -88,88 +105,35 @@ eval_infix :: proc(env: ^Environment, infix: ^Expression) -> Number {
             right_number : Number 
             #partial switch binop.kind {
                 case .PLUS : {
-                    switch left.type {
-                        case .LITERAL: {
-                            left_number = literal_to_number(left)
-                        }
-                        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
-                        case .LET: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
-                        case .BLOCK: assert(false, "NOT IMPLEMENTED")
-                        case .INFIX: assert(false, "NOT IMPLEMENTED")
-                    }
-                    switch right.type {
-                        case .LITERAL: {
-                            right_number = literal_to_number(right)
-                        }
-
-                        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
-                        case .LET: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
-                        case .BLOCK: assert(false, "NOT IMPLEMENTED")
-                        case .INFIX: assert(false, "NOT IMPLEMENTED")
-                    }
+                    left_number = eval_numeric_ops(left)
+                    right_number = eval_numeric_ops(right)
                     result = eval_add(left_number, right_number)
-
                 }
                 case .MULTIPLY: {
-                    switch left.type {
-                        case .LITERAL: {
-                            left_number = literal_to_number(left)
-                        }
-                        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
-                        case .LET: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
-                        case .BLOCK: assert(false, "NOT IMPLEMENTED")
-                        case .INFIX: assert(false, "NOT IMPLEMENTED")
-                    }
-                    switch right.type {
-                        case .LITERAL: {
-                            right_number = literal_to_number(right)
-                        }
-
-                        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
-                        case .LET: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
-                        case .BLOCK: assert(false, "NOT IMPLEMENTED")
-                        case .INFIX: assert(false, "NOT IMPLEMENTED")
-                    }
+                    left_number = eval_numeric_ops(left)
+                    right_number = eval_numeric_ops(right)
                     result = eval_mul(left_number, right_number)
-
                 }
                 case .DIVIDE :{
-                    switch left.type {
-                        case .LITERAL: {
-                            left_number = literal_to_number(left)
-                        }
-                        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
-                        case .LET: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
-                        case .BLOCK: assert(false, "NOT IMPLEMENTED")
-                        case .INFIX: assert(false, "NOT IMPLEMENTED")
-                    }
-                    switch right.type {
-                        case .LITERAL: {
-                            right_number = literal_to_number(right)
-                        }
-
-                        case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
-                        case .LET: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-                        case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
-                        case .BLOCK: assert(false, "NOT IMPLEMENTED")
-                        case .INFIX: assert(false, "NOT IMPLEMENTED")
-                    }
+                    left_number = eval_numeric_ops(left)
+                    right_number = eval_numeric_ops(right)
                     result = eval_div(left_number, right_number)
-
                 }
+                case : parser_errorf(infix.pos ,false, "Expected Binop, got %s", binop.kind)
             }
         }
+    }
+    return result
+}
+
+// Basically just type assertions out of the Literal_Value_Type union
+eval_literal :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+    parser_errorf(node.pos, node.kind == .LITERAL, "Unexpected KIND: %v expected LITERAL", node.kind)
+    result : Literal_Value_Type
+    literal_node := node.value.(Literal_Node)
+    switch v in literal_node.value {
+        case Number: result = literal_to_number(node)
+        case string: result = literal_node.value
     }
     return result
 }
@@ -181,19 +145,20 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
         case  Binding: {
             binding := node.value.(Binding)
             name := binding.name
-            switch binding.exp.type {
-                case .LITERAL: assert(false, "NOT IMPLEMENTED")
+            switch binding.value.kind {
+                case .LITERAL: result = eval_literal(env, binding.value)
                 case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
                 case .LET: assert(false, "NOT IMPLEMENTED")
                 case .FUNCTION: assert(false, "NOT IMPLEMENTED")
                 case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
                 case .BLOCK: assert(false, "NOT IMPLEMENTED")
                 case .INFIX: {
-                    infix := binding.exp
+                    infix := binding.value
                     result = eval_infix(env, infix)
-                    env[name] = result
                 }
             }
+
+            env[name] = result
         }
 
         case  Binop: assert(false, "Expected binding, found binop")
@@ -204,6 +169,7 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
         case  Literal_Node: assert(false, "Expected binding, found Literal_Node")
 
     }
+
 
     return result
 }
@@ -253,8 +219,8 @@ main :: proc() {
         result : Literal_Value_Type
 
         fmt.printfln("%v", node)
-        switch node.type {
-            case .LITERAL: assert(false, "NOT IMPLEMENTED")
+        switch node.kind {
+            case .LITERAL: parser_errorf(node.pos, false, "Expected expression, found LITERAL: %v", node.value)
             case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
             case .LET: result = eval_let(&env, node)
             case .FUNCTION: assert(false, "NOT IMPLEMENTED")

@@ -28,7 +28,7 @@ Ast :: struct {
     expressions: []Expression,
 }
 
-Expression_Type :: enum {
+Expression_Kind :: enum {
     LITERAL,
     IDENTIFIER,
     LET,
@@ -57,12 +57,12 @@ Literal_Node :: struct {
 
 Binding :: struct {
     name: string,
-    exp: ^Expression,
+    value: ^Expression,
     pos: Position,
 }
 
 Expression :: struct {
-    type: Expression_Type,
+    kind: Expression_Kind,
     value: Value_Type,
     pos: Position,
 }
@@ -173,12 +173,12 @@ parse_let :: proc(p: ^Parser) -> ^Expression {
 
     binding := Binding{
         name = name,
-        exp = exp,
+        value = exp,
         pos = pos,
     }
 
     let_exp := new(Expression, context.temp_allocator)
-    let_exp.type = .LET
+    let_exp.kind = .LET
     let_exp.value = binding
     let_exp.pos = pos
 
@@ -196,7 +196,7 @@ parse_string :: proc(p: ^Parser) -> ^Expression {
         value = value
     }
     
-    exp.type = .LITERAL
+    exp.kind = .LITERAL
     exp.value = lit
     exp.pos = pos
     next_tok(p)
@@ -235,7 +235,7 @@ parse_number :: proc(p: ^Parser) -> ^Expression {
         value = value
     }
     
-    exp.type = .LITERAL
+    exp.kind = .LITERAL
     exp.value = lit
     exp.pos = pos
     next_tok(p)
@@ -302,7 +302,7 @@ parse_infix :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
     }
 
     exp := new(Expression, context.temp_allocator)
-    exp.type = .INFIX
+    exp.kind = .INFIX
     exp.value = binop
     exp.pos = pos
 
@@ -314,7 +314,7 @@ parse_identifier :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     exp := new(Expression, context.temp_allocator)
     
-    exp.type = .IDENTIFIER      
+    exp.kind = .IDENTIFIER      
     exp.value = curr.literal
     exp.pos = curr.pos
     

@@ -1,1 +1,6 @@
 let x = 1 + 2
+let y = 10.1 + 20.4
+let z = 12000 * 80807
+let a = 12000 / 80807
+let name = "Jake"
+

@@ -100,7 +100,7 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         strings.write_string(&sb, "  ")
     }
     
-    #partial switch expr.type {
+    #partial switch expr.kind {
     case .LITERAL:
         fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
         
@@ -117,7 +117,7 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         for i in 0..<indent+1 {
             strings.write_string(&sb, "  ")
         }
-        fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.exp, indent+1))
+        fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.value, indent+1))
         for i in 0..<indent {
             strings.write_string(&sb, "  ")
         }
