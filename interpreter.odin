@@ -82,6 +82,7 @@ literal_to_number :: proc(node: ^Expression) -> Number {
     literal_node := node.value.(Literal_Node)
     switch v in literal_node.value{
         case Number: result = literal_node.value.(Number)
+        case Function: assert(false, "NOT IMPLEMENTED")
         case string: assert(false, "Must be a LITERAL NUMBER not string")
     }
 
@@ -91,6 +92,8 @@ literal_to_number :: proc(node: ^Expression) -> Number {
 eval_infix :: proc(env: ^Environment, infix: ^Expression) -> Number {
     result : Number
     switch v in infix.value {
+
+        case  Function: parser_errorf(infix.pos ,false, "UNIMPLEMENTED")
         case  Binding: parser_errorf(infix.pos ,false, "Expected Binop, got Binding")
         case  i64: parser_errorf(infix.pos ,false, "Expected Binop, got i64")
         case  f64: parser_errorf(infix.pos ,false, "Expected Binop, got f64")
@@ -133,8 +136,16 @@ eval_literal :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
     literal_node := node.value.(Literal_Node)
     switch v in literal_node.value {
         case Number: result = literal_to_number(node)
+        case Function: assert(false, "NOT IMPLEMENTED")
         case string: result = literal_node.value
     }
+    return result
+}
+
+eval_function :: proc(env: ^Environment, node: ^Expression) -> Function {
+    result : Function
+    parser_errorf(node.pos, node.kind == .FUNCTION, "Unexpected KIND: %v expected FUNCTION", node.kind)
+    result = node.value.(Function)
     return result
 }
 
@@ -149,7 +160,7 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
                 case .LITERAL: result = eval_literal(env, binding.value)
                 case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
                 case .LET: assert(false, "NOT IMPLEMENTED")
-                case .FUNCTION: assert(false, "NOT IMPLEMENTED")
+                case .FUNCTION: result = eval_function(env, binding.value)
                 case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
                 case .BLOCK: assert(false, "NOT IMPLEMENTED")
                 case .INFIX: {
@@ -162,6 +173,7 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
         }
 
         case  Binop: assert(false, "Expected binding, found binop")
+        case  Function: assert(false, "Expected binding, found function")
         case  i64: assert(false, "Expected binding, found i64")
         case  f64: assert(false, "Expected binding, found f64")
         case  string: assert(false, "Expected binding, found string")
@@ -178,7 +190,7 @@ main :: proc() {
 
     args := os.args
     if len(args) < 2 {
-        fmt.println("USAGE: ./norse <source_file>")
+        fmt.println("USAGE: ./auga <source_file>")
         os.exit(69)
     }
     name : string
@@ -207,6 +219,7 @@ main :: proc() {
 
     tokens := lex(l)
 
+
     p := &Parser{
         curr = 0,
         next = 0,
@@ -214,11 +227,12 @@ main :: proc() {
     }
 
     ast := parse(p)
+
     env := make(map[string]Literal_Value_Type)
     for node in ast {
         result : Literal_Value_Type
 
-        fmt.printfln("%v", node)
+        fmt.printfln("%s", to_string(node))
         switch node.kind {
             case .LITERAL: parser_errorf(node.pos, false, "Expected expression, found LITERAL: %v", node.value)
             case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")

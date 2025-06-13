@@ -61,6 +61,12 @@ Binding :: struct {
     pos: Position,
 }
 
+Function :: struct {
+    args: [dynamic]^Expression,
+    value: [dynamic]^Expression,
+    pos: Position,
+}
+
 Expression :: struct {
     kind: Expression_Kind,
     value: Value_Type,
@@ -75,6 +81,7 @@ Number :: union {
 Literal_Value_Type :: union {
     Number,
     string,
+    Function,
 }
 
 Value_Type :: union {
@@ -84,6 +91,7 @@ Value_Type :: union {
     f64,
     string,
     ^Expression,
+    Function,
     Literal_Node,
 }
 
@@ -127,7 +135,7 @@ token_precedence :: proc(p: ^Parser) -> Precedence {
             return .PRODUCT
         case LPAREN: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, RBRACE:
             return .LOWEST
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s", to_string(curr_tok(p).kind))
@@ -155,6 +163,57 @@ next_and_expect :: proc(p: ^Parser, kind: Kind) -> Token {
     return curr_tok(p)
 }
 
+parse_fn_args :: proc(p: ^Parser) -> [dynamic]^Expression {
+    curr := curr_tok(p)
+    args: [dynamic]^Expression
+    for expect(p, .IDENT) {
+        exp := parse_identifier(p)
+        append(&args, exp)
+    }
+    return args
+}
+
+parse_block :: proc(p: ^Parser) -> [dynamic]^Expression {
+    curr := curr_tok(p)
+    block_exps: [dynamic]^Expression
+    for !expect(p, .RBRACE) {
+        if !next_tok(p) {
+            parser_errorf(curr.pos, false, "Expected: Expression or }, got %s", to_string(curr_tok(p).kind))
+        }
+        exp := parse_expression(p)
+        append(&block_exps, exp)
+    }
+    return block_exps
+}
+
+parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
+    using Kind
+    curr := curr_tok(p)
+
+    pos := curr.pos
+    curr = next_and_expect(p, IDENT)
+    name := curr.literal
+    args := parse_fn_args(p)
+    fmt.printfln("ARGS: %v", args)
+
+    if !expect(p, .LBRACE){
+        parser_errorf(curr.pos, false, "Expected: {, got %s", to_string(curr_tok(p).kind))
+    }
+    block := parse_block(p)
+
+    fn := Function {
+        value = block,
+        args = args,
+        pos = pos,
+    }
+
+    fn_decl := new(Expression, context.temp_allocator)
+    fn_decl.kind = .FUNCTION
+    fn_decl.value = fn
+    fn_decl.pos = pos
+
+    return fn_decl  
+}
 parse_let :: proc(p: ^Parser) -> ^Expression {
     using Kind
     curr := curr_tok(p)
@@ -274,6 +333,7 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
         case LET: return parse_let(p)
         case IDENT: return parse_identifier(p)
         case INT64, FLOAT64: return parse_number(p)
+        case FN: return parse_fn_decl(p)
 
         case STRING: return parse_string(p)
         case: parser_errorf(curr.pos, false, fmt.aprintf("unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n, %s\n",

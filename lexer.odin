@@ -27,6 +27,7 @@ Kind :: enum {
     LET,
     FN,
     RETURN,
+    PRINT,
     IDENT,
     STRING,
     DOT,
@@ -58,6 +59,7 @@ kind_to_string :: proc(kind: Kind) -> string {
         case LET: return "LET"
         case FN: return "FN"
         case RETURN: return "RETURN"
+        case PRINT: return "PRINT"
         case IDENT: return "IDENT"
         case DOT: return "DOT"
         case EQUALS: return "EQUALS"
@@ -138,6 +140,61 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
             strings.write_string(&sb, "  ")
         }
         fmt.sbprintf(&sb, "right: %s\n", expression_to_string(binop.right, indent+1))
+        for i in 0..<indent {
+            strings.write_string(&sb, "  ")
+        }
+        strings.write_string(&sb, ")")
+        
+    case .FUNCTION:
+        function := expr.value.(Function)
+        fmt.sbprintf(&sb, "Function(\n")
+        
+        // Print arguments
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "args: [")
+        if len(function.args) > 0 {
+            fmt.sbprintf(&sb, "\n")
+            for arg, i in function.args {
+                for j in 0..<indent+2 {
+                    strings.write_string(&sb, "  ")
+                }
+                fmt.sbprintf(&sb, "%s", expression_to_string(arg, indent+2))
+                if i < len(function.args) - 1 {
+                    fmt.sbprintf(&sb, ",")
+                }
+                fmt.sbprintf(&sb, "\n")
+            }
+            for i in 0..<indent+1 {
+                strings.write_string(&sb, "  ")
+            }
+        }
+        fmt.sbprintf(&sb, "],\n")
+        
+        // Print body/value
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "body: [")
+        if len(function.value) > 0 {
+            fmt.sbprintf(&sb, "\n")
+            for stmt, i in function.value {
+                for j in 0..<indent+2 {
+                    strings.write_string(&sb, "  ")
+                }
+                fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
+                if i < len(function.value) - 1 {
+                    fmt.sbprintf(&sb, ",")
+                }
+                fmt.sbprintf(&sb, "\n")
+            }
+            for i in 0..<indent+1 {
+                strings.write_string(&sb, "  ")
+            }
+        }
+        fmt.sbprintf(&sb, "]\n")
+        
         for i in 0..<indent {
             strings.write_string(&sb, "  ")
         }
@@ -246,7 +303,6 @@ peek_char :: proc(l: ^Lexer) -> u8 {
     return l.text[l.next]
 }
 
-//let name = "Jake"
 
 //Assume curr_char(l) == "\""
 lex_string :: proc(l:^Lexer) -> Token {
@@ -316,6 +372,7 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
         case "let":    return .LET
         case "fn":     return .FN  
         case "return": return .RETURN
+        case "print": return .PRINT
         case:          return .IDENT
     }
 }
@@ -396,7 +453,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
 
             case '-': {
                 token = Token{ 
-                    kind = MINUS        ,
+                    kind = MINUS,
                     literal = "-",
                     pos = l.pos
                 }
@@ -405,8 +462,8 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
 
             case '*': {
                 token = Token{ 
-                    kind = MULTIPLY     ,
-                    literal = string([]u8{curr_char(l)}),
+                    kind = MULTIPLY,
+                    literal = "*",
                     pos = l.pos
                 } 
 
@@ -424,70 +481,94 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             } 
 
             case '\\': token = Token{ 
-                kind = BSLASH       ,
-                literal = string([]u8{curr_char(l)}),
+                kind = BSLASH,
+                literal = "\\",
                 pos = l.pos
             } 
 
-            case '(': token = Token{ 
-                kind = LPAREN       ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+            case '(': { 
+                token = Token{ 
+                    kind = LPAREN,
+                    literal = "(",
+                    pos = l.pos
+                }
+                next_char(l)
             } 
 
-            case ')': token = Token{ 
-                kind = RPAREN       ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+            case ')': { 
+                token = Token{ 
+                    kind = RPAREN,
+                    literal = ")",
+                    pos = l.pos
+                }
+                next_char(l)
             } 
             
-            case '{': token = Token{ 
-                kind = LBRACE       ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+            case '{': { 
+                token = Token{ 
+                    kind = LBRACE,
+                    literal = "}",
+                    pos = l.pos
+                }
+                next_char(l)
             } 
 
-            case '}': token = Token{ 
-                kind = RBRACE       ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+            case '}': { 
+                token = Token{ 
+                    kind = RBRACE,
+                    literal = "}",
+                    pos = l.pos
+                }
+                next_char(l)
             } 
 
-            case '\'': token = Token{ 
-                kind = SQUOTE       ,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+            case '\'': { 
+                token = Token{ 
+                    kind = SQUOTE,
+                    literal = "\\",
+                    pos = l.pos
+                }
+
+                next_char(l)
             } 
+
 
             case '\"': { 
                 token = lex_string(l)
             } 
             
-            case '?': token = Token{ 
-                kind = QUESTION_MARK,
-                literal = string([]u8{curr_char(l)}),
-                pos = l.pos
+            case '?': {
+                assert(false, "QUESTION_MARK not implemented in lexer")
+                token = Token{ 
+                    kind = QUESTION_MARK,
+                    literal = "?",
+                    pos = l.pos
+                }
+
+                next_char(l)
             } 
 
             case '!': {
+                assert(false, "BANG not implemented in lexer")
+                token = Token{ 
+                    kind = BANG,
+                    literal = "!",
+                    pos = l.pos
+                }
 
-                assert(false, "BANG not implemented")
-                // token = Token{ 
-                // kind = BANG         ,
-                // literal = string([]u8{curr_char(l)}),
-                // pos = l.pos
-                // }
+                next_char(l)
             } 
 
             case ',': {
-                assert(false, "COMMA not implemented")
-            //     token = Token{ 
-            //     kind = COMMA ,
-            //     literal = string([]u8{curr_char(l)}),
-            //     pos = l.pos
-            // } 
-            }
+                assert(false, " COMMA not implemented in lexer")
+                token = Token{ 
+                    kind = BANG,
+                    literal = "!",
+                    pos = l.pos
+                }
 
+                next_char(l)
+            } 
             case ' ', '\n', '\t', '\r': {
                 assert(false, "SPACE leaked")
             }
