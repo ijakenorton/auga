@@ -12,13 +12,13 @@ eval_add :: proc(left: Number, right: Number) -> Number {
     switch l in left {
     case f64:
         switch r in right {
-        case f64: return l + r        // f64 + f64 = f64
-        case i64: return l + f64(r)   // f64 + i64 = f64
+            case f64: return l + r        // f64 + f64 = f64
+            case i64: return l + f64(r)   // f64 + i64 = f64
         }
     case i64:
         switch r in right {
-        case f64: return f64(l) + r   // i64 + f64 = f64
-        case i64: return l + r        // i64 + i64 = i64 
+            case f64: return f64(l) + r   // i64 + f64 = f64
+            case i64: return l + r        // i64 + i64 = i64 
         }
     }
     return i64(0) // UNREACHABLE
@@ -28,13 +28,13 @@ eval_mul :: proc(left: Number, right: Number) -> Number {
     switch l in left {
     case f64:
         switch r in right {
-        case f64: return l * r        // f64 + f64 = f64
-        case i64: return l * f64(r)   // f64 + i64 = f64
+            case f64: return l * r        // f64 + f64 = f64
+            case i64: return l * f64(r)   // f64 + i64 = f64
         }
     case i64:
         switch r in right {
-        case f64: return f64(l) * r   // i64 + f64 = f64
-        case i64: return l * r        // i64 + i64 = i64 
+            case f64: return f64(l) * r   // i64 + f64 = f64
+            case i64: return l * r        // i64 + i64 = i64 
         }
     }
     return i64(0) // UNREACHABLE
@@ -44,13 +44,13 @@ eval_div :: proc(left: Number, right: Number) -> Number {
     switch l in left {
     case f64:
         switch r in right {
-        case f64: return l / r        // f64 + f64 = f64
-        case i64: return l / f64(r)   // f64 + i64 = f64
+            case f64: return l / r        // f64 + f64 = f64
+            case i64: return l / f64(r)   // f64 + i64 = f64
         }
     case i64:
         switch r in right {
-        case f64: return f64(l) / r   // i64 + f64 = f64
-        case i64: return l / r        // i64 + i64 = i64 
+            case f64: return f64(l) / r   // i64 + f64 = f64
+            case i64: return l / r        // i64 + i64 = i64 
         }
     }
     return i64(0) // UNREACHABLE
@@ -94,6 +94,7 @@ eval_infix :: proc(env: ^Environment, infix: ^Expression) -> Number {
     switch v in infix.value {
 
         case  Function: parser_errorf(infix.pos ,false, "UNIMPLEMENTED")
+        case  Function_Call: parser_errorf(infix.pos ,false, "UNIMPLEMENTED")
         case  Binding: parser_errorf(infix.pos ,false, "Expected Binop, got Binding")
         case  i64: parser_errorf(infix.pos ,false, "Expected Binop, got i64")
         case  f64: parser_errorf(infix.pos ,false, "Expected Binop, got f64")
@@ -142,13 +143,48 @@ eval_literal :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
     return result
 }
 
-eval_function :: proc(env: ^Environment, node: ^Expression) -> Function {
-    result : Function
+eval_function_decl :: proc(env: ^Environment, node: ^Expression) -> Function {
     parser_errorf(node.pos, node.kind == .FUNCTION, "Unexpected KIND: %v expected FUNCTION", node.kind)
+
+    result : Function
     result = node.value.(Function)
     return result
 }
 
+eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+    parser_errorf(node.pos, node.kind == .FUNCTION_CALL, "Unexpected KIND: %v expected FUNCTION_CALL", node.kind)
+
+    result : Literal_Value_Type
+    function_call := node.value.(Function_Call)
+    params := function_call.params
+    name := function_call.name
+
+    //Ensure function exists, may be portable once there are multiple scopes, maybe have to be refactored
+    var := env[name]
+    fn : Function
+    switch v in var {
+        case Function: fn = var.(Function)
+        case Number: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", node.kind)
+        case string: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", node.kind)
+    }
+
+    param_length := len(params)
+    arg_length := len(fn.args)
+    parser_errorf(node.pos, param_length == arg_length, "Incorrect arguments for '%s', expected %d, got %d ", param_length, arg_length)
+
+    func_env := make(map[string]Literal_Value_Type)
+    defer delete(func_env)
+
+    //Copy env for now, later can have a structure of envs, tree perhaps. Could look into how web assembly does it
+    for name, value in env {
+        func_env[name] = value
+    }
+
+    assert(false, "not implemented")
+
+
+    return result
+}
 
 eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
@@ -158,9 +194,9 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
             name := binding.name
             switch binding.value.kind {
                 case .LITERAL: result = eval_literal(env, binding.value)
-                case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
+                case .IDENTIFIER: assert(false, "not implemented")
                 case .LET: assert(false, "NOT IMPLEMENTED")
-                case .FUNCTION: result = eval_function(env, binding.value)
+                case .FUNCTION: result = eval_function_decl(env, binding.value)
                 case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
                 case .BLOCK: assert(false, "NOT IMPLEMENTED")
                 case .INFIX: {
@@ -174,6 +210,7 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
 
         case  Binop: assert(false, "Expected binding, found binop")
         case  Function: assert(false, "Expected binding, found function")
+        case  Function_Call: assert(false, "Expected binding, found function")
         case  i64: assert(false, "Expected binding, found i64")
         case  f64: assert(false, "Expected binding, found f64")
         case  string: assert(false, "Expected binding, found string")
@@ -182,9 +219,10 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
 
     }
 
-
     return result
 }
+
+
 
 main :: proc() {
 
@@ -229,6 +267,8 @@ main :: proc() {
     ast := parse(p)
 
     env := make(map[string]Literal_Value_Type)
+
+    //REFACTOR out to a recursive eval(env: ^Environment, node: ^Expression)
     for node in ast {
         result : Literal_Value_Type
 
@@ -238,7 +278,7 @@ main :: proc() {
             case .IDENTIFIER: assert(false, "NOT IMPLEMENTED")
             case .LET: result = eval_let(&env, node)
             case .FUNCTION: assert(false, "NOT IMPLEMENTED")
-            case .FUNCTION_CALL: assert(false, "NOT IMPLEMENTED")
+            case .FUNCTION_CALL: eval_function_call(&env, node)
             case .BLOCK: assert(false, "NOT IMPLEMENTED")
             case .INFIX: assert(false, "NOT IMPLEMENTED")
         }

@@ -53,189 +53,7 @@ Kind :: enum {
     EOF
 }
 
-kind_to_string :: proc(kind: Kind) -> string {
-    using Kind
-    switch kind {
-        case LET: return "LET"
-        case FN: return "FN"
-        case RETURN: return "RETURN"
-        case PRINT: return "PRINT"
-        case IDENT: return "IDENT"
-        case DOT: return "DOT"
-        case EQUALS: return "EQUALS"
-        case INT64: return "INT64"
-        case FLOAT64: return "FLOAT64"
-        case PLUS: return "PLUS"
-        case MINUS: return "MINUS"
-        case MULTIPLY: return "MULTIPLY"
-        case DIVIDE: return "DIVIDE"
-        case BSLASH: return "BSLASH"
-        case LPAREN: return "LPAREN"
-        case RPAREN: return "RPAREN"
-        case LBRACE: return "LBRACE"
-        case RBRACE: return "RBRACE"
-        case LBRACKET: return "LBRACKET"
-        case RBRACKET: return "RBRACKET"
-        case SQUOTE: return "SQUOTE"
-        case STRING: return "STRING"
-        case QUESTION_MARK: return "QUESTION_MARK"
-        case BANG: return "BANG"
-        case COMMA: return "COMMA"
-        case NEWLINE: return "NEWLINE"
-        case EOF: return "EOF"
-        case : {
-            assert(false, "UNREACHABLE")
-        }
-    }
-    return "INVALID"
 
-}
-
-expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
-    if expr == nil do return "nil"
-    
-    sb: strings.Builder
-    strings.builder_init(&sb)
-    
-    // Add indentation
-    for i in 0..<indent {
-        strings.write_string(&sb, "  ")
-    }
-    
-    #partial switch expr.kind {
-    case .LITERAL:
-        fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
-        
-    case .IDENTIFIER:
-        fmt.sbprintf(&sb, "Identifier(%v)", expr.value.(string))
-        
-    case .LET:
-        binding := expr.value.(Binding)
-        fmt.sbprintf(&sb, "Let(\n")
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "name: %s,\n", binding.name)
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.value, indent+1))
-        for i in 0..<indent {
-            strings.write_string(&sb, "  ")
-        }
-        strings.write_string(&sb, ")")
-        
-    case .INFIX:
-        binop := expr.value.(Binop)
-        fmt.sbprintf(&sb, "Infix(\n")
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "op: %s,\n", to_string(binop.kind))
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "left: %s,\n", expression_to_string(binop.left, indent+1))
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "right: %s\n", expression_to_string(binop.right, indent+1))
-        for i in 0..<indent {
-            strings.write_string(&sb, "  ")
-        }
-        strings.write_string(&sb, ")")
-        
-    case .FUNCTION:
-        function := expr.value.(Function)
-        fmt.sbprintf(&sb, "Function(\n")
-        
-        // Print arguments
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "args: [")
-        if len(function.args) > 0 {
-            fmt.sbprintf(&sb, "\n")
-            for arg, i in function.args {
-                for j in 0..<indent+2 {
-                    strings.write_string(&sb, "  ")
-                }
-                fmt.sbprintf(&sb, "%s", expression_to_string(arg, indent+2))
-                if i < len(function.args) - 1 {
-                    fmt.sbprintf(&sb, ",")
-                }
-                fmt.sbprintf(&sb, "\n")
-            }
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-        }
-        fmt.sbprintf(&sb, "],\n")
-        
-        // Print body/value
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "body: [")
-        if len(function.value) > 0 {
-            fmt.sbprintf(&sb, "\n")
-            for stmt, i in function.value {
-                for j in 0..<indent+2 {
-                    strings.write_string(&sb, "  ")
-                }
-                fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
-                if i < len(function.value) - 1 {
-                    fmt.sbprintf(&sb, ",")
-                }
-                fmt.sbprintf(&sb, "\n")
-            }
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-        }
-        fmt.sbprintf(&sb, "]\n")
-        
-        for i in 0..<indent {
-            strings.write_string(&sb, "  ")
-        }
-        strings.write_string(&sb, ")")
-    }
-    
-    return strings.to_string(sb)
-}
-
-
-position_to_string :: proc(pos: Position) -> string { 
-    out: strings.Builder
-    strings.builder_init(&out)
-
-    fmt.sbprintf(&out ,"%s(%d:%d)", pos.file_path, pos.row, pos.col) 
-    return strings.to_string(out)
-}
-
-token_to_string :: proc(token: Token) -> string { 
-    out: strings.Builder
-    strings.builder_init(&out)
-    lit := token.literal == "\n" ? "\\n": token.literal
-
-    fmt.sbprintf(&out ,"Token: \n") 
-    fmt.sbprintf(&out ,"    literal: %s\n",  lit)
-    fmt.sbprintf(&out ,"    kind: %s\n",     to_string(token.kind))
-    fmt.sbprintf(&out ,"    position: %s\n", to_string(token.pos))
-    return strings.to_string(out)
-}
-
-to_string :: proc{kind_to_string, token_to_string, position_to_string, expression_to_string}
-
-print_token :: proc(token: Token) {
-    fmt.printf("%s\n", to_string(token))
-}
-
-print :: proc{print_token}
-
-shift :: proc(args: []string) -> ([]string, string) {
-    return args[1:], args[0]
-}
 
 alphanumeric :: proc(c: u8) -> bool {
     switch (c) {
@@ -471,6 +289,15 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             }
 
             case '/': {
+                if peek_char(l) == '/' {
+                    next_char(l)
+                    for peek_char(l) != '\n' {
+                        next_char(l)
+                    }
+
+                    next_char(l)
+                    continue
+                }
                 token = Token{ 
                     kind = DIVIDE,
                     literal = "/",
