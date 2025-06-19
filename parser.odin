@@ -190,35 +190,42 @@ parse_block :: proc(p: ^Parser) -> [dynamic]^Expression {
 }
 
 parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
-    curr := curr_tok(p)
-    args: [dynamic]^Expression
+    params: [dynamic]^Expression
 
     if !next_tok(p){
-        parser_errorf(curr.pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
+        parser_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
     }
 
+    count := 0
     for !expect(p, .RPAREN) {
-        exp := parse_expression(p)
-        if !next_tok(p){
-            parser_errorf(curr.pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
+        if count > 1000 {
+            parser_errorf(curr_tok(p).pos, false, "Count hit max depth, either params is over 1000 or `parse_expression did not move the parser forward", to_string(curr_tok(p).kind))
         }
-        append(&args, exp)
+        exp := parse_expression(p)
+
+        append(&params, exp)
+        count += 1
+
+        //Unsure if this is quite right, might get stuck in infinite loop here if parse_expression doesnt move anywhere
+        // if !next_tok(p){
+        //
+        //     parser_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
+        // }
     }
 
-    return args
+
+    next_tok(p)
+
+    return params
 }
-//FIx missing funciont call
+//Fix missing funciont call
 parse_fn_call :: proc(p: ^Parser) -> ^Expression {
-
     curr := curr_tok(p)
-
     name := curr.literal
-
     pos := curr.pos
+
     curr = next_and_expect(p, .LPAREN)
     params := parse_fn_params(p)
-    fmt.printfln("Params: %v",params)
-
 
     fn := Function_Call {
         name = name,
@@ -230,8 +237,6 @@ parse_fn_call :: proc(p: ^Parser) -> ^Expression {
     fn_call.kind = .FUNCTION_CALL
     fn_call.value = fn
     fn_call.pos = pos
-
-
 
     return fn_call  
 }
@@ -475,55 +480,3 @@ parse :: proc(p: ^Parser) -> [dynamic]^Expression {
 
     return ast
 }
-
-// main :: proc() {
-//
-//     args := os.args
-//     if len(args) < 2 {
-//         fmt.println("USAGE: ./norse <source_file>")
-//         os.exit(69)
-//     }
-//     name : string
-//     file_name: string
-//     args, name = shift(args)
-//     args, file_name = shift(args)
-//
-//
-//     raw_code, ok := os.read_entire_file_from_filename(file_name)
-//     if !ok {
-//         fmt.eprintln("Failed to load the file!")
-//         return
-//     }
-//     defer delete(raw_code) 
-//
-//     l := &Lexer{ 
-//         curr = 0,
-//         next = 0,
-//         pos = Position{ 
-//             row = 1,
-//             col = 1,
-//             file_path = file_name,
-//         },
-//         text = string(raw_code)
-//     }
-//
-//     tokens := lex(l)
-//
-//     // for token in tokens {
-//     //     fmt.printfln("%v", token)
-//     // }
-//     p := &Parser{
-//         curr = 0,
-//         next = 0,
-//         tokens = tokens,
-//     }
-//
-//     ast := parse(p)
-//     for node in ast {
-//         fmt.printfln("%s", to_string(node))
-//     }
-//
-//     free_all(context.temp_allocator)
-//
-// }
-
