@@ -28,36 +28,33 @@ Ast :: struct {
     expressions: []Expression,
 }
 
-Expression_Kind :: enum {
-    LITERAL,
-    IDENTIFIER,
-    LET,
-    FUNCTION,
-    FUNCTION_CALL,
-    BLOCK,
-    INFIX,
+Binop_Kind :: enum {
+    PLUS,
+    MINUS,        
+    MULTIPLY,     
+    DIVIDE,       
 }
 
+
 Binop :: struct {
-    kind: Kind,
+    kind: Binop_Kind,
     left: ^Expression,
     right: ^Expression,
 }
 
-Literal_Kind :: enum {
-    INT64,
-    FLOAT64,
-    STRING,
-}
 
 Literal_Node :: struct {
-    kind: Literal_Kind,
     value: Literal_Value_Type,
 }
 
 Binding :: struct {
     name: string,
     value: ^Expression,
+    pos: Position,
+}
+
+Identifier :: struct {
+    name: string,
     pos: Position,
 }
 
@@ -74,7 +71,6 @@ Function_Call :: struct {
 }
 
 Expression :: struct {
-    kind: Expression_Kind,
     value: Value_Type,
     pos: Position,
 }
@@ -91,12 +87,10 @@ Literal_Value_Type :: union {
 }
 
 Value_Type :: union {
+    ^Expression,
     Binop,
     Binding,
-    i64,
-    f64,
-    string,
-    ^Expression,
+    Identifier,
     Function,
     Function_Call,
     Literal_Node,
@@ -199,7 +193,7 @@ parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
     count := 0
     for !expect(p, .RPAREN) {
         if count > 1000 {
-            parser_errorf(curr_tok(p).pos, false, "Count hit max depth, either params is over 1000 or `parse_expression did not move the parser forward", to_string(curr_tok(p).kind))
+            parser_errorf(curr_tok(p).pos, false, "Count hit max depth, either params is over 1000 or 'parse_expression' did not move the parser forward", to_string(curr_tok(p).kind))
         }
         exp := parse_expression(p)
 
@@ -234,7 +228,6 @@ parse_fn_call :: proc(p: ^Parser) -> ^Expression {
     }
 
     fn_call := new(Expression, context.temp_allocator)
-    fn_call.kind = .FUNCTION_CALL
     fn_call.value = fn
     fn_call.pos = pos
 
@@ -272,7 +265,6 @@ parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
     }
 
     fn_decl := new(Expression, context.temp_allocator)
-    fn_decl.kind = .FUNCTION
     fn_decl.value = fn
     fn_decl.pos = pos
 
@@ -281,9 +273,9 @@ parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
 
 parse_let :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
+    pos := curr.pos
     exp := new(Expression, context.temp_allocator)
 
-    pos := curr.pos
     curr = next_and_expect(p, .IDENT)
     name := curr.literal
 
@@ -301,7 +293,6 @@ parse_let :: proc(p: ^Parser) -> ^Expression {
     }
 
     let_exp := new(Expression, context.temp_allocator)
-    let_exp.kind = .LET
     let_exp.value = binding
     let_exp.pos = pos
 
@@ -311,15 +302,13 @@ parse_let :: proc(p: ^Parser) -> ^Expression {
 parse_string :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
-    exp := new(Expression, context.temp_allocator)
     value := curr.literal
     
     lit := Literal_Node {
-        kind = .STRING,
         value = value
     }
     
-    exp.kind = .LITERAL
+    exp := new(Expression, context.temp_allocator)
     exp.value = lit
     exp.pos = pos
     next_tok(p)
@@ -329,9 +318,7 @@ parse_string :: proc(p: ^Parser) -> ^Expression {
 parse_number :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
-    exp := new(Expression, context.temp_allocator)
     value : Literal_Value_Type
-    kind : Literal_Kind
     
     #partial switch (curr.kind) {
         case Kind.INT64: {
@@ -341,7 +328,6 @@ parse_number :: proc(p: ^Parser) -> ^Expression {
                 parser_errorf(curr.pos, false, "could not parse int: %s", curr.literal)
             }
             value = Number(parsed_value)
-            kind = Literal_Kind.INT64
         }
         case Kind.FLOAT64: {
             parsed_value, ok := strconv.parse_f64(curr.literal) 
@@ -349,16 +335,14 @@ parse_number :: proc(p: ^Parser) -> ^Expression {
                 parser_errorf(curr.pos, false, "could not parse float: %s", curr.literal)
             }
             value = Number(parsed_value)
-            kind = Literal_Kind.FLOAT64
         }
     }
     
     lit := Literal_Node {
-        kind = kind,
         value = value
     }
     
-    exp.kind = .LITERAL
+    exp := new(Expression, context.temp_allocator)
     exp.value = lit
     exp.pos = pos
     next_tok(p)
@@ -388,12 +372,10 @@ has_infix_parser :: proc(kind: Kind) -> bool{
     return left
 }
 
-// TODO: Handle parantheses for precedence, 
+// TODO: Handle parentheses for precedence, 
 // Also I believe there is some issue with function parsing still as parantheses leaked to here
 parse_prefix :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
-
-
 
     pos := curr.pos
     using Kind
@@ -404,6 +386,7 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
             if expect_peek(p, .LPAREN) {
                 return parse_fn_call(p)
             }
+
             return parse_identifier(p)
         }
         case INT64, FLOAT64: return parse_number(p)
@@ -415,6 +398,19 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
     }
     //UNREACHABLE
     return nil
+}
+
+to_binop_kind ::proc(pos: Position ,kind: Kind) -> Binop_Kind {
+    #partial switch kind {
+        case Kind.PLUS: return Binop_Kind.PLUS
+        case Kind.MINUS: return Binop_Kind.MINUS
+        case Kind.MULTIPLY: return Binop_Kind.MULTIPLY
+        case Kind.DIVIDE: return Binop_Kind.DIVIDE
+        case : 
+            parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE", to_string(kind))
+    }
+    assert(false, "UNREACHABLE")
+    return Binop_Kind.PLUS
 }
 
 parse_infix :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
@@ -430,28 +426,30 @@ parse_infix :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
 
     right := parse_precedence(p, operator_precedence) 
     binop := Binop {
-        kind = kind,
+        kind = to_binop_kind(pos, kind),
         left = left,
         right = right, 
     }
 
     exp := new(Expression, context.temp_allocator)
-    exp.kind = .INFIX
     exp.value = binop
     exp.pos = pos
-
 
     return exp
 }
 
 parse_identifier :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
+    
+    ident := Identifier{
+        name = curr.literal,
+        pos = curr.pos
+    }
+    
     exp := new(Expression, context.temp_allocator)
-    
-    exp.kind = .IDENTIFIER      
-    exp.value = curr.literal
+    exp.value = ident
     exp.pos = curr.pos
-    
+
     next_tok(p)
     return exp
 }
