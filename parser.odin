@@ -33,6 +33,7 @@ Binop_Kind :: enum {
     MINUS,        
     MULTIPLY,     
     DIVIDE,       
+    MOD,
 }
 
 
@@ -83,6 +84,7 @@ Number :: union {
 Literal_Value_Type :: union {
     Number,
     string,
+    bool,
     Function,
 }
 
@@ -124,7 +126,7 @@ peek_precedence :: proc(p: ^Parser) -> Precedence {
     return token_precedence(p)
 }
 
-token_precedence :: proc(p: ^Parser) -> Precedence {
+token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
     kind := curr_tok(p).kind
     using Kind
     #partial switch kind {
@@ -132,14 +134,14 @@ token_precedence :: proc(p: ^Parser) -> Precedence {
             return .EQUALS
         case PLUS, MINUS:
             return .SUM
-        case MULTIPLY, DIVIDE:
+        case MULTIPLY, DIVIDE, MOD:
             return .PRODUCT
         case LPAREN: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, RBRACE, RPAREN:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, RBRACE, RPAREN, IF:
             return .LOWEST
         case:
-            parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s", to_string(curr_tok(p).kind))
+            parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
             //UNREACHABLE
             return .LOWEST
     }
@@ -153,16 +155,16 @@ expect_peek :: proc(p: ^Parser, kind: Kind) -> bool {
     return peek_tok(p).kind == kind
 }
 
-next_and_expect :: proc(p: ^Parser, kind: Kind) -> Token {
+next_and_expect :: proc(p: ^Parser, kind: Kind, loc := #caller_location) -> Token {
     curr := curr_tok(p)
 
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Expected: %s, got %s", to_string(kind), to_string(curr_tok(p).kind))
+        parser_errorf(curr.pos, false, "Expected: %s, got %s, \n%s Error: Calling function\n", to_string(kind), to_string(curr_tok(p).kind), loc)
     }
 
     curr = curr_tok(p)
     if !expect(p, kind) {
-        parser_errorf(curr.pos, false, "Expected: %s, got %s", to_string(kind), to_string(curr_tok(p).kind))
+        parser_errorf(curr.pos, false, "Expected: %s, got %s, \n%s Error: Calling function\n", to_string(kind), to_string(curr_tok(p).kind), loc)
     }
 
     return curr_tok(p)
@@ -237,10 +239,17 @@ parse_fn_call :: proc(p: ^Parser) -> ^Expression {
 parse_fn_args :: proc(p: ^Parser) -> [dynamic]^Expression {
     curr := curr_tok(p)
     args: [dynamic]^Expression
-    for expect(p, .IDENT) {
+
+    if !next_tok(p){
+        parser_errorf(curr_tok(p).pos, false, "Expected: argument or {{, got %s", to_string(curr_tok(p).kind))
+    }
+
+    for !expect(p, .LBRACE) {
         exp := parse_identifier(p)
         append(&args, exp)
     }
+
+    next_tok(p)
     return args
 }
 
@@ -248,15 +257,8 @@ parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
 
     pos := curr.pos
-    curr = next_and_expect(p, .IDENT)
-    name := curr.literal
     args := parse_fn_args(p)
-
-    if !expect(p, .LBRACE){
-        parser_errorf(curr.pos, false, "Expected: {, got %s", to_string(curr_tok(p).kind))
-    }
     block := parse_block(p)
-
 
     fn := Function {
         value = block,
@@ -356,7 +358,7 @@ parse_expression :: proc(p: ^Parser) -> ^Expression {
 
 has_infix_parser :: proc(kind: Kind) -> bool{
     #partial switch kind {
-        case .PLUS, .MINUS, .MULTIPLY, .DIVIDE: return true
+        case .PLUS, .MINUS, .MULTIPLY, .DIVIDE, .MOD: return true
         case: return false
     }
 }
@@ -382,7 +384,6 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
     #partial switch (curr.kind) {
         case LET: return parse_let(p)
         case IDENT: {
-
             if expect_peek(p, .LPAREN) {
                 return parse_fn_call(p)
             }
@@ -390,10 +391,11 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
             return parse_identifier(p)
         }
         case INT64, FLOAT64: return parse_number(p)
+        case STRING: return parse_string(p)
+        case TRUE, FALSE : return parse_boolean(p)
         case FN: return parse_fn_decl(p)
 
-        case STRING: return parse_string(p)
-        case: parser_errorf(curr.pos, false, fmt.aprintf("unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n, %s\n",
+        case: parser_errorf(curr.pos, false, fmt.aprintf("unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n \n%s",
                to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr)))
     }
     //UNREACHABLE
@@ -406,8 +408,9 @@ to_binop_kind ::proc(pos: Position ,kind: Kind) -> Binop_Kind {
         case Kind.MINUS: return Binop_Kind.MINUS
         case Kind.MULTIPLY: return Binop_Kind.MULTIPLY
         case Kind.DIVIDE: return Binop_Kind.DIVIDE
+        case Kind.MOD: return Binop_Kind.MOD
         case : 
-            parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE", to_string(kind))
+            parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
     }
     assert(false, "UNREACHABLE")
     return Binop_Kind.PLUS
@@ -435,6 +438,31 @@ parse_infix :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
     exp.value = binop
     exp.pos = pos
 
+    return exp
+}
+
+parse_boolean :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    value : Literal_Value_Type
+    
+    #partial switch (curr.kind) {
+        case Kind.FALSE: {
+            value = false
+        }
+        case Kind.TRUE: {
+            value = true
+        }
+    }
+    
+    lit := Literal_Node {
+        value = value
+    }
+    
+    exp := new(Expression, context.temp_allocator)
+    exp.value = lit
+    exp.pos = pos
+    next_tok(p)
     return exp
 }
 

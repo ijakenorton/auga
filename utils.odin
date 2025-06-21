@@ -29,14 +29,19 @@ kind_to_string :: proc(kind: Kind) -> string {
         case LET: return "LET"
         case FN: return "FN"
         case RETURN: return "RETURN"
+        case IF: return "IF"
+        case TRUE: return "TRUE"
+        case FALSE: return "FALSE"
         case PRINT: return "PRINT"
         case IDENT: return "IDENT"
         case DOT: return "DOT"
         case EQUALS: return "EQUALS"
+        case SAME: return "SAME"
         case INT64: return "INT64"
         case FLOAT64: return "FLOAT64"
         case PLUS: return "PLUS"
         case MINUS: return "MINUS"
+        case MOD: return "MOD"
         case MULTIPLY: return "MULTIPLY"
         case DIVIDE: return "DIVIDE"
         case BSLASH: return "BSLASH"
@@ -63,10 +68,11 @@ kind_to_string :: proc(kind: Kind) -> string {
 
 literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
     if lit == nil do return "nil"
-    switch v in lit {
+    switch t in lit {
         case string: return lit.(string)
         case Number: return number_to_string(lit.(Number))
         case Function: return function_to_string(lit.(Function), indent)
+        case bool : assert(false, "Must be a LITERAL NUMBER not bool")
     }
 
     assert(false, "UNREACHABLE")
@@ -244,6 +250,16 @@ position_to_string :: proc(pos: Position) -> string {
 
     fmt.sbprintf(&out ,"%s(%d:%d)", pos.file_path, pos.row, pos.col) 
     return strings.to_string(out)
+}
+
+boolean_to_string :: proc(flag: bool) -> string {
+    switch flag {
+        case true: return "true"
+        case false: return "false"
+    }
+
+    assert(false, "UNREACHABLE")
+    return ""
 }
 
 number_to_string :: proc(num: Number) -> string { 

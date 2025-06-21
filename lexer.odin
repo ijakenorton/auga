@@ -27,11 +27,16 @@ Kind :: enum {
     LET,
     FN,
     RETURN,
+    IF,
+    TRUE,
+    FALSE,
+    MOD,
     PRINT,
     IDENT,
     STRING,
     DOT,
     EQUALS,       
+    SAME,
     INT64,
     FLOAT64,
     PLUS,
@@ -191,6 +196,9 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
         case "fn":     return .FN  
         case "return": return .RETURN
         case "print": return .PRINT
+        case "if": return .IF
+        case "true": return .TRUE
+        case "false": return .FALSE
         case:          return .IDENT
     }
 }
@@ -232,9 +240,12 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
     curr : u8
 
     next_char(l)
+    max_depth := 10000
 
     using Kind
     for {
+
+        assert(max_depth > 0, fmt.aprintf("\n%s Error: lexing error", to_string((l.pos))))
 
         skip_whitespace(l) // Always skip whitespace first
         if empty(l) {
@@ -252,6 +263,17 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             }
 
             case '=': {
+
+                if peek_char(l) == '=' {
+                    next_char(l)
+                    token = Token{ 
+                        kind = SAME,
+                        literal = "==",
+                        pos = l.pos
+                    }
+                    next_char(l)
+                    continue
+                }
                 token = Token{ 
                     kind = EQUALS,
                     literal = "=",
@@ -359,6 +381,15 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                 next_char(l)
             } 
 
+            case '%': { 
+                token = Token{ 
+                    kind = MOD,
+                    literal = "%",
+                    pos = l.pos
+                }
+
+                next_char(l)
+            } 
 
             case '\"': { 
                 token = lex_string(l)
@@ -400,10 +431,15 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                 assert(false, "SPACE leaked")
             }
 
+            case : {
+                assert(false, fmt.aprintf("\n%s Error: lexing error, unlexible char %c", to_string((l.pos)), curr_char(l)))
+            }
+
         }
 
         append(&tokens, token)
         // fmt.printfln("%s", to_string(token))
+        max_depth -= 1
     }
 
     append(&tokens, Token{
