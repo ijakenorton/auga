@@ -105,6 +105,19 @@ eval_numeric_ops :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_
 }
 
 
+literal_value_to_number :: proc(lit: Literal_Value_Type) -> Number {
+    // assert(node.kind == .LITERAL, "Must be a LITERAL to convert to NUMBER")
+    result : Number
+    switch v in lit {
+        case Number: result = lit.(Number)
+        case Function: assert(false, "NOT IMPLEMENTED")
+        case string: assert(false, "Must be a LITERAL NUMBER not string")
+    }
+
+    return  result
+}
+
+
 literal_to_number :: proc(node: ^Expression) -> Number {
     assert(node.kind == .LITERAL, "Must be a LITERAL to convert to NUMBER")
 
@@ -124,8 +137,8 @@ eval_infix :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     switch v in node.value {
 
-        case  Function: parser_errorf(node.pos ,false, "UNIMPLEMENTED")
-        case  Function_Call: parser_errorf(node.pos ,false, "UNIMPLEMENTED")
+        case  Function: parser_errorf(node.pos ,false, "Expected Binop got Function")
+        case  Function_Call: parser_errorf(node.pos ,false, "Expected Binop got Function Call")
         case  Binding: parser_errorf(node.pos ,false, "Expected Binop, got Binding")
         case  i64: parser_errorf(node.pos ,false, "Expected Binop, got i64")
         case  f64: parser_errorf(node.pos ,false, "Expected Binop, got f64")
@@ -134,25 +147,19 @@ eval_infix :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
         case  Literal_Node: parser_errorf(node.pos ,false, "Expected Binop, got Literal_Node")
         case  Binop: {
             binop := node.value.(Binop)
-            left := binop.left
-            right := binop.right
-            left_number : Number 
-            right_number : Number 
+            left := eval(env, binop.left)
+            right := eval(env, binop.right)
+            left_number := literal_value_to_number(left)
+            right_number := literal_value_to_number(right) 
             #partial switch binop.kind {
                 case .PLUS : {
-                    left_number = eval_numeric_ops(env, left).(Number)
-                    right_number = eval_numeric_ops(env, right).(Number)
                     result = eval_add(left_number, right_number)
 
                 }
                 case .MULTIPLY: {
-                    left_number = eval_numeric_ops(env, left).(Number)
-                    right_number = eval_numeric_ops(env, right).(Number)
                     result = eval_mul(left_number, right_number)
                 }
                 case .DIVIDE :{
-                    left_number = eval_numeric_ops(env, left).(Number)
-                    right_number = eval_numeric_ops(env, right).(Number)
                     result = eval_div(left_number, right_number)
                 }
                 case : parser_errorf(node.pos ,false, "Expected Binop, got %s", binop.kind)
@@ -171,7 +178,7 @@ eval_literal :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
     literal_node := node.value.(Literal_Node)
     switch v in literal_node.value {
         case Number: result = literal_to_number(node)
-        case Function: assert(false, "NOT IMPLEMENTED")
+        case Function: result = eval_function(env, node)
         case string: result = literal_node.value
     }
     return result
@@ -252,6 +259,25 @@ eval_let :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     return result
 }
 
+// Unsure if this should take a block type or [dynamic]^Expression. Maybe after type refactor will be more obvious
+eval_block :: proc(env: ^Environment, exps: [dynamic]^Expression) -> Literal_Value_Type {
+    result : Literal_Value_Type
+    func_env := make(map[string]Literal_Value_Type)
+    defer delete(func_env)
+
+    //Copy env for now, later can have a structure of envs, tree perhaps. Could look into how web assembly does it
+    for name, value in env {
+        func_env[name] = value
+    }
+
+    // Execute function body
+    for stmt in exps { 
+        result = eval(&func_env, stmt)  
+    }
+
+    return result
+}
+
 eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
     result : Literal_Value_Type
 
@@ -318,12 +344,16 @@ main :: proc() {
 
     //REFACTOR out to a recursive eval(env: ^Environment, node: ^Expression)
     for node in ast {
-        result := eval(&env, node)
+        _ = eval(&env, node)
 
-        fmt.printfln("%v", result)
+        // fmt.printfln("%#v", result)
     }
 
-    fmt.printfln("%v", env)
+    for key, value in env {
+        // fmt.printfln("key %s, value: %#v", key, value)
+        fmt.printfln("key %s, value: %s", key, literal_to_string(value))
+    }
+
 
     free_all(context.temp_allocator)
 

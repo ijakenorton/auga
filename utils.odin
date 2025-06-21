@@ -61,99 +61,23 @@ kind_to_string :: proc(kind: Kind) -> string {
 
 }
 
-expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
-    if expr == nil do return "nil"
-    
+literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
+    if lit == nil do return "nil"
+    switch v in lit {
+        case string: return lit.(string)
+        case Number: return number_to_string(lit.(Number))
+        case Function: return function_to_string(lit.(Function), indent)
+    }
+
+    assert(false, "UNREACHABLE")
+    return ""
+}
+
+function_to_string :: proc(function: Function, indent: int = 0) -> string {
+
     sb: strings.Builder
     strings.builder_init(&sb)
-    
-    // Add indentation
-    for i in 0..<indent {
-        strings.write_string(&sb, "  ")
-    }
-    
-    #partial switch expr.kind {
-    case .LITERAL:
-        fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
-        
-    case .IDENTIFIER:
-        fmt.sbprintf(&sb, "Identifier(%v)", expr.value.(string))
-        
-    case .LET:
-        binding := expr.value.(Binding)
-        fmt.sbprintf(&sb, "Let(\n")
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "name: %s,\n", binding.name)
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.value, indent+1))
-        for i in 0..<indent {
-            strings.write_string(&sb, "  ")
-        }
-        strings.write_string(&sb, ")")
-        
-    case .INFIX:
-        binop := expr.value.(Binop)
-        fmt.sbprintf(&sb, "Infix(\n")
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "op: %s,\n", to_string(binop.kind))
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "left: %s,\n", expression_to_string(binop.left, indent+1))
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "right: %s\n", expression_to_string(binop.right, indent+1))
-        for i in 0..<indent {
-            strings.write_string(&sb, "  ")
-        }
-        strings.write_string(&sb, ")")
 
-    case .FUNCTION_CALL:
-        fun_call := expr.value.(Function_Call)
-        fmt.sbprintf(&sb, "Function_Call(\n")
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-
-        fmt.sbprintf(&sb, "name: %s,\n", fun_call.name)
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-
-        // Print params
-
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
-        fmt.sbprintf(&sb, "params: [")
-        if len(fun_call.params) > 0 {
-            fmt.sbprintf(&sb, "\n")
-            for param, i in fun_call.params {
-                for j in 0..<indent+2 {
-                    strings.write_string(&sb, "  ")
-                }
-                fmt.sbprintf(&sb, "%s", expression_to_string(param, indent+2))
-                if i < len(fun_call.params) - 1 {
-                    fmt.sbprintf(&sb, ",")
-                }
-                fmt.sbprintf(&sb, "\n")
-            }
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-        }
-        fmt.sbprintf(&sb, "],\n")
-        strings.write_string(&sb, ")")
-        
-    case .FUNCTION:
-        function := expr.value.(Function)
         fmt.sbprintf(&sb, "Function(\n")
         
         // Print arguments
@@ -206,6 +130,105 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
             strings.write_string(&sb, "  ")
         }
         strings.write_string(&sb, ")")
+
+    return strings.to_string(sb)
+}
+
+expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
+    if expr == nil do return "nil"
+    
+    sb: strings.Builder
+    strings.builder_init(&sb)
+    
+    // Add indentation
+    for i in 0..<indent {
+        strings.write_string(&sb, "  ")
+    }
+    
+    #partial switch expr.kind {
+    case .LITERAL:
+        fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
+        
+    case .IDENTIFIER:
+        fmt.sbprintf(&sb, "Identifier(%v)", expr.value.(string))
+        
+    case .LET:
+        binding := expr.value.(Binding)
+        fmt.sbprintf(&sb, "Let(\n")
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "name: %s,\n", binding.name)
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.value, indent+1))
+        for i in 0..<indent {
+            strings.write_string(&sb, "  ")
+        }
+        strings.write_string(&sb, ")")
+        
+    case .INFIX:
+        binop := expr.value.(Binop)
+        fmt.sbprintf(&sb, "Infix(\n")
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "op: %s,\n", to_string(binop.kind))
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "left: %s,\n", expression_to_string(binop.left, indent))
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "right: %s\n", expression_to_string(binop.right, indent))
+        for i in 0..<indent {
+            strings.write_string(&sb, "  ")
+        }
+        strings.write_string(&sb, ")")
+
+    case .FUNCTION_CALL:
+        fun_call := expr.value.(Function_Call)
+        fmt.sbprintf(&sb, "Function_Call(\n")
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+
+        fmt.sbprintf(&sb, "name: %s,\n", fun_call.name)
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+
+        // Print params
+
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+        fmt.sbprintf(&sb, "params: [")
+        if len(fun_call.params) > 0 {
+            fmt.sbprintf(&sb, "\n")
+            for param, i in fun_call.params {
+                for j in 0..<indent+2 {
+                    strings.write_string(&sb, "  ")
+                }
+                fmt.sbprintf(&sb, "%s", expression_to_string(param, indent+2))
+                if i < len(fun_call.params) - 1 {
+                    fmt.sbprintf(&sb, ",")
+                }
+                fmt.sbprintf(&sb, "\n")
+            }
+            for i in 0..<indent+1 {
+                strings.write_string(&sb, "  ")
+            }
+        }
+        fmt.sbprintf(&sb, "],\n")
+        strings.write_string(&sb, ")")
+        
+        case .FUNCTION: {
+            function := expr.value.(Function)
+            fmt.sbprintf(&sb, "%s", function_to_string(function, indent+2))
+        }
     }
     
     return strings.to_string(sb)
@@ -220,6 +243,16 @@ position_to_string :: proc(pos: Position) -> string {
     return strings.to_string(out)
 }
 
+number_to_string :: proc(num: Number) -> string { 
+    out: strings.Builder
+    strings.builder_init(&out)
+
+    switch v in num {
+        case f64: fmt.sbprintf(&out ,"%f", num)
+        case i64: fmt.sbprintf(&out ,"%d", num)
+    }
+    return strings.to_string(out)
+}
 token_to_string :: proc(token: Token) -> string { 
     out: strings.Builder
     strings.builder_init(&out)
@@ -232,7 +265,7 @@ token_to_string :: proc(token: Token) -> string {
     return strings.to_string(out)
 }
 
-to_string :: proc{kind_to_string, token_to_string, position_to_string, expression_to_string}
+to_string :: proc{kind_to_string, token_to_string, position_to_string, number_to_string, expression_to_string, literal_to_string, function_to_string}
 
 print_token :: proc(token: Token) {
     fmt.printf("%s\n", to_string(token))

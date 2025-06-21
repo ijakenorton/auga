@@ -388,6 +388,8 @@ has_infix_parser :: proc(kind: Kind) -> bool{
     return left
 }
 
+// TODO: Handle parantheses for precedence, 
+// Also I believe there is some issue with function parsing still as parantheses leaked to here
 parse_prefix :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
 
