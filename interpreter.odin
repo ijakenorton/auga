@@ -6,7 +6,6 @@ import "core:fmt"
 Environment :: map[string]Literal_Value_Type
 
 literal_value_to_number :: proc(lit: Literal_Value_Type) -> Number {
-    // assert(node.kind == .LITERAL, "Must be a LITERAL to convert to NUMBER")
     result : Number
     switch t in lit {
         case Number: result = lit.(Number)
@@ -56,6 +55,7 @@ eval_add :: proc(left: Number, right: Number) -> Number {
     return i64(0) // UNREACHABLE
 }
 
+
 eval_mul :: proc(left: Number, right: Number) -> Number {
     switch l in left {
     case f64:
@@ -92,27 +92,76 @@ eval_div :: proc(left: Number, right: Number) -> Number {
     return i64(0) // UNREACHABLE
 }
 
-
-eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
 
-    literal_node := node.value.(Identifier)
-    ident := env[literal_node.name]
-    switch t in ident {
-        case Number: result = ident.(Number)
-        case string: result = ident.(string)
-        case Function: result = ident.(Function) 
-        case bool : result = ident.(bool)
-        case : parser_errorf(node.pos, false, "Expected NUMBER | STRING or | FUNCTION found: %v", ident)
+    if_node := node.value.(If)
+    cond := eval(env, if_node.cond)
+
+    switch t in cond {
+        case Number: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Number")
+        case Function: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Function")
+        case string: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Function")
+        case bool : 
     }
+
+    fmt.printfln("IFBLOCK cond: %#v", cond)
+
+    if cond.(bool) {
+        result = eval_block(env, if_node.body)
+    } 
+
+
+    
     return result
 }
 
 
+eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
+    switch t in left {
+        case Number: {
+            switch t in right {
+                case Number: return left.(Number) == right.(Number)
+                case string: return false
+                case bool: return false
+                case Function: return false
+            }
+        }
+        case string: {
+            switch t in right {
+                case Number: return false
+                case string: return left.(string) == right.(string)
+                case bool: return false
+                case Function: return false
+            }
+        }
+        case bool: {
+            switch t in right {
+                case Number: return false
+                case string: return false
+                case bool: return left.(bool) == right.(bool)
+                case Function: return false
+            }
+        }
+        case Function: {
+            switch t in right {
+                case Number: return false
+                case string: return false
+                case bool: return false
+                //TODO Maybe need to adjust this in the future, possibly just pointer equality, or recursive struct equality
+                case Function: return false
+            }
+        }
+    }
+
+    assert(false, "UNREACHABLE")
+    return false
+}
+
 eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     switch t in node.value {
-
+        case  If: parser_errorf(node.pos ,false, "Expected Binop got If")
         case  Function: parser_errorf(node.pos ,false, "Expected Binop got Function")
         case  Function_Call: parser_errorf(node.pos ,false, "Expected Binop got Function Call")
         case  Binding: parser_errorf(node.pos ,false, "Expected Binop, got Binding")
@@ -123,12 +172,18 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
             binop := node.value.(Binop)
             left := eval(env, binop.left)
             right := eval(env, binop.right)
+            //TODO possibly move this around as they are not needed in SAME binop
             left_number := literal_value_to_number(left)
             right_number := literal_value_to_number(right) 
-            #partial switch binop.kind {
+            switch binop.kind {
+                case .SAME : {
+                    result = eval_same(left, right)
+                }
                 case .PLUS : {
                     result = eval_add(left_number, right_number)
-
+                }
+                case .MINUS : {
+                    assert(false, "NOT IMPLEMENTED")
                 }
                 case .MULTIPLY: {
                     result = eval_mul(left_number, right_number)
@@ -158,6 +213,24 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     }
 
 
+    return result
+}
+
+eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+    result : Literal_Value_Type
+
+    literal_node := node.value.(Identifier)
+    // fmt.printfln("IDENT: %#v", literal_node)
+    // fmt.printfln("ENV: %#v", env)
+    
+    ident := env[literal_node.name]
+    switch t in ident {
+        case Number: result = ident.(Number)
+        case string: result = ident.(string)
+        case Function: result = ident.(Function) 
+        case bool : result = ident.(bool)
+        case : parser_errorf(node.pos, false, "Var: %s, Expected NUMBER | STRING | FUNCTION | BOOL found: %v", ident, literal_node.name)
+    }
     return result
 }
 
@@ -233,10 +306,11 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
             env[name] = result
         }
 
-        case  Binop: assert(false, "Expected binding, found binop")
+        case  If: assert(false, "Expected binding, found If")
+        case  Binop: assert(false, "Expected binding, found Binop")
         case  Identifier: assert(false, "Expected binding, found Identifier")
-        case  Function: assert(false, "Expected binding, found function")
-        case  Function_Call: assert(false, "Expected binding, found function")
+        case  Function: assert(false, "Expected binding, found Function")
+        case  Function_Call: assert(false, "Expected binding, found Function_Call")
         case  ^Expression: assert(false, "Expected binding, found Expression")
         case  Literal_Node: assert(false, "Expected binding, found Literal_Node")
 
@@ -274,11 +348,13 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
         case Function: result = eval_function(env, node)
         case Function_Call: result = eval_function_call(env, node)
         case Binop: result = eval_binop(env, node)
+        case If: result = eval_if(env, node)
         // Unsure if this is the right move...
         case ^Expression: result = eval(env, node.value.(^Expression))
     }
 
-    parser_errorf(node.pos, result != nil, "Nil node %v, result: %v", node, result)
+    // parser_errorf(node.pos, result != nil, "Nil node %v, result: %v", node, result)
+
     return result
 }
 
@@ -314,8 +390,6 @@ main :: proc() {
     }
 
     tokens := lex(l)
-    fmt.eprintln("Lexed")
-
     p := &Parser{
         curr = 0,
         next = 0,
@@ -323,19 +397,24 @@ main :: proc() {
     }
 
     ast := parse(p)
-    fmt.eprintln("Parsed")
+    for node in ast {
+        fmt.printfln("%s", to_string(node))
+    }
+    // assert(false, "stop")
 
     env := make(map[string]Literal_Value_Type)
 
+
     for node in ast {
-        _ = eval(&env, node)
-        // fmt.printfln("%#v", result)
+        result := eval(&env, node)
+        fmt.printfln("RES: %#v", result)
     }
 
-    for key, value in env {
-        // fmt.printfln("key %s, value: %#v", key, value)
-        fmt.printfln("key %s, value: %s", key, literal_to_string(value))
-    }
+
+    // fmt.printfln("%v", env)
+    // for key, value in env {
+    //     fmt.printfln("key %s, value: %s", key, literal_to_string(value))
+    // }
 
     free_all(context.temp_allocator)
 

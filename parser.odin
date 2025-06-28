@@ -34,6 +34,7 @@ Binop_Kind :: enum {
     MULTIPLY,     
     DIVIDE,       
     MOD,
+    SAME,
 }
 
 
@@ -51,6 +52,13 @@ Literal_Node :: struct {
 Binding :: struct {
     name: string,
     value: ^Expression,
+    pos: Position,
+}
+
+If :: struct {
+    cond: ^Expression,
+    body: [dynamic]^Expression,
+    elze: [dynamic]^Expression,
     pos: Position,
 }
 
@@ -96,6 +104,7 @@ Value_Type :: union {
     Function,
     Function_Call,
     Literal_Node,
+    If,
 }
 
 next_tok :: proc(p: ^Parser) -> bool {
@@ -104,12 +113,12 @@ next_tok :: proc(p: ^Parser) -> bool {
     }
 
     // fmt.printfln("NEXT_TOK: moving from curr=%d to curr=%d", p.curr, p.next)
-    // fmt.printfln("NEXT_TOK: was on %v", curr_tok(p))
+    // fmt.printfln("NEXT_TOK: was on %#v", curr_tok(p))
     
     p.curr = p.next
     p.next += 1
     
-    // fmt.printfln("NEXT_TOK: now on %v", curr_tok(p))
+    // fmt.printfln("CURR: now on %#v", curr_tok(p))
     return true
 }
 
@@ -136,9 +145,11 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             return .SUM
         case MULTIPLY, DIVIDE, MOD:
             return .PRODUCT
+        case SAME:
+            return .LESSGREATER
         case LPAREN: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, RBRACE, RPAREN, IF:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF:
             return .LOWEST
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
@@ -174,13 +185,12 @@ next_and_expect :: proc(p: ^Parser, kind: Kind, loc := #caller_location) -> Toke
 parse_block :: proc(p: ^Parser) -> [dynamic]^Expression {
     curr := curr_tok(p)
     block_exps: [dynamic]^Expression
+
     for !expect(p, .RBRACE) {
-        if !next_tok(p) {
-            parser_errorf(curr.pos, false, "Expected: Expression or }, got %s", to_string(curr_tok(p).kind))
-        }
         exp := parse_expression(p)
         append(&block_exps, exp)
     }
+
     next_tok(p)
     return block_exps
 }
@@ -273,6 +283,42 @@ parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
     return fn_decl  
 }
 
+parse_if :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after IF")
+    }
+
+    cond := new(Expression, context.temp_allocator)
+    cond = parse_expression(p)
+
+    if !expect(p, .LBRACE) {
+        parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
+            to_string(curr_tok(p).kind))
+    }
+
+    if !next_tok(p){
+        parser_errorf(curr_tok(p).pos, false, "Expected: IF block {{, got EOF", to_string(curr_tok(p).kind))
+    }
+
+    block := parse_block(p)
+
+
+    iff := If {
+        cond = cond,
+        body = block,
+        elze = nil,
+        pos = pos,
+    }
+
+
+    if_exp := new(Expression, context.temp_allocator)
+    if_exp.value = iff
+    if_exp.pos = pos
+
+    return if_exp  
+}
 parse_let :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
@@ -357,18 +403,24 @@ parse_expression :: proc(p: ^Parser) -> ^Expression {
 }
 
 has_infix_parser :: proc(kind: Kind) -> bool{
-    #partial switch kind {
-        case .PLUS, .MINUS, .MULTIPLY, .DIVIDE, .MOD: return true
-        case: return false
+    using Kind
+     switch kind {
+        case .PLUS, .MINUS, .MULTIPLY, .DIVIDE, .MOD, .SAME: return true
+        case LET, FN, RETURN, IF, TRUE, FALSE, PRINT, IDENT, STRING, 
+             DOT, EQUALS, INT64, FLOAT64, BSLASH, LPAREN, RPAREN, 
+             LBRACKET, RBRACKET, LBRACE, RBRACE, SQUOTE, QUESTION_MARK, 
+             BANG, COMMA, NEWLINE, EOF: return false
     }
+
+    assert(false, "UNREACHABLE")
+    return false
 }
  parse_precedence :: proc(p: ^Parser, precedence: Precedence) -> ^Expression {
     left := parse_prefix(p)
 
     for token_precedence(p) > precedence {
         if !has_infix_parser(curr_tok(p).kind) { break }
-        
-        left = parse_infix(p, left) 
+        left = parse_binop(p, left) 
     }
 
     return left
@@ -383,6 +435,10 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
     using Kind
     #partial switch (curr.kind) {
         case LET: return parse_let(p)
+        case IF: {
+            res := parse_if(p)
+            return res 
+        }
         case IDENT: {
             if expect_peek(p, .LPAREN) {
                 return parse_fn_call(p)
@@ -395,8 +451,9 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
         case TRUE, FALSE : return parse_boolean(p)
         case FN: return parse_fn_decl(p)
 
-        case: parser_errorf(curr.pos, false, fmt.aprintf("unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n \n%s",
-               to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr)))
+        case: 
+            parser_errorf(pos, false, "unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n \n%s",
+               to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr))
     }
     //UNREACHABLE
     return nil
@@ -409,6 +466,7 @@ to_binop_kind ::proc(pos: Position ,kind: Kind) -> Binop_Kind {
         case Kind.MULTIPLY: return Binop_Kind.MULTIPLY
         case Kind.DIVIDE: return Binop_Kind.DIVIDE
         case Kind.MOD: return Binop_Kind.MOD
+        case Kind.SAME: return Binop_Kind.SAME
         case : 
             parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
     }
@@ -416,7 +474,7 @@ to_binop_kind ::proc(pos: Position ,kind: Kind) -> Binop_Kind {
     return Binop_Kind.PLUS
 }
 
-parse_infix :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
+parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
     curr := curr_tok(p) // This is now the operator token
     pos := curr.pos
     kind := curr.kind

@@ -262,8 +262,8 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                 token = lex_number(l)
             }
 
+            //Could be cleaner
             case '=': {
-
                 if peek_char(l) == '=' {
                     next_char(l)
                     token = Token{ 
@@ -271,14 +271,14 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                         literal = "==",
                         pos = l.pos
                     }
-                    next_char(l)
-                    continue
+                } else {
+                    token = Token{ 
+                        kind = EQUALS,
+                        literal = "=",
+                        pos = l.pos
+                    }
                 }
-                token = Token{ 
-                    kind = EQUALS,
-                    literal = "=",
-                    pos = l.pos
-                }
+
                 next_char(l)
             }
 
@@ -356,7 +356,7 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
             case '{': { 
                 token = Token{ 
                     kind = LBRACE,
-                    literal = "}",
+                    literal = "{",
                     pos = l.pos
                 }
                 next_char(l)

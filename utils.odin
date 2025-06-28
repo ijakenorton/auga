@@ -72,7 +72,7 @@ literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
         case string: return lit.(string)
         case Number: return number_to_string(lit.(Number))
         case Function: return function_to_string(lit.(Function), indent)
-        case bool : assert(false, "Must be a LITERAL NUMBER not bool")
+        case bool : return boolean_to_string(lit.(bool))
     }
 
     assert(false, "UNREACHABLE")
@@ -155,6 +155,9 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         //Unsure if this is a problem
         case ^Expression: 
             fmt.sbprintf(&sb, "Expression(%v)", expression_to_string(expr.value.(^Expression), indent+1))
+
+        case  If: 
+            fmt.sbprintf(&sb, "If(%#v)", expr.value.(If))
         case Literal_Node:
             fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
             
@@ -272,6 +275,11 @@ number_to_string :: proc(num: Number) -> string {
     }
     return strings.to_string(out)
 }
+
+bool_to_string :: proc(b: bool) -> string { 
+    return b ? "True": "False"
+}
+
 token_to_string :: proc(token: Token) -> string { 
     out: strings.Builder
     strings.builder_init(&out)
