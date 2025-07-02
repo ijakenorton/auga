@@ -101,18 +101,16 @@ eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     switch t in cond {
         case Number: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Number")
         case Function: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Function")
-        case string: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Function")
+        case string: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found String")
         case bool : 
     }
 
-    fmt.printfln("IFBLOCK cond: %#v", cond)
-
     if cond.(bool) {
         result = eval_block(env, if_node.body)
-    } 
+    } else if if_node.elze != nil {
+        result = eval_block(env, if_node.elze)
+    }
 
-
-    
     return result
 }
 
@@ -397,9 +395,9 @@ main :: proc() {
     }
 
     ast := parse(p)
-    for node in ast {
-        fmt.printfln("%s", to_string(node))
-    }
+    // for node in ast {
+    //     fmt.printfln("%s", to_string(node))
+    // }
     // assert(false, "stop")
 
     env := make(map[string]Literal_Value_Type)

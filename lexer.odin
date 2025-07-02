@@ -28,6 +28,7 @@ Kind :: enum {
     FN,
     RETURN,
     IF,
+    ELSE,
     TRUE,
     FALSE,
     MOD,
@@ -197,6 +198,7 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
         case "return": return .RETURN
         case "print": return .PRINT
         case "if": return .IF
+        case "else": return .ELSE
         case "true": return .TRUE
         case "false": return .FALSE
         case:          return .IDENT

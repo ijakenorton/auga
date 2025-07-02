@@ -30,6 +30,7 @@ kind_to_string :: proc(kind: Kind) -> string {
         case FN: return "FN"
         case RETURN: return "RETURN"
         case IF: return "IF"
+        case ELSE: return "ELSE"
         case TRUE: return "TRUE"
         case FALSE: return "FALSE"
         case PRINT: return "PRINT"
@@ -77,6 +78,74 @@ literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
 
     assert(false, "UNREACHABLE")
     return ""
+}
+
+if_to_string :: proc(iff: If, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    fmt.sbprintf(&sb, "IF(\n")
+        
+    for i in 0..<indent+1 {
+        strings.write_string(&sb, "  ")
+    }
+    fmt.sbprintf(&sb, "cond: (")
+    fmt.sbprintf(&sb, "\n")
+    fmt.sbprintf(&sb, "%s", expression_to_string(iff.cond, indent+1))
+    fmt.sbprintf(&sb, "\n")
+    fmt.sbprintf(&sb, "),\n")
+    
+    // Print body/value
+    for i in 0..<indent+1 {
+        strings.write_string(&sb, "  ")
+    }
+    fmt.sbprintf(&sb, "ifbody: [")
+    if len(iff.body) > 0 {
+        fmt.sbprintf(&sb, "\n")
+        for stmt, i in iff.body {
+            for j in 0..<indent+2 {
+                strings.write_string(&sb, "  ")
+            }
+            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
+            if i < len(iff.body) - 1 {
+                fmt.sbprintf(&sb, ",")
+            }
+            fmt.sbprintf(&sb, "\n")
+        }
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+    }
+    fmt.sbprintf(&sb, "]\n")
+
+    for i in 0..<indent+1 {
+        strings.write_string(&sb, "  ")
+    }
+    fmt.sbprintf(&sb, "elsebody: [")
+    if len(iff.elze) > 0 {
+        fmt.sbprintf(&sb, "\n")
+        for stmt, i in iff.elze {
+            for j in 0..<indent+2 {
+                strings.write_string(&sb, "  ")
+            }
+            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
+            if i < len(iff.elze) - 1 {
+                fmt.sbprintf(&sb, ",")
+            }
+            fmt.sbprintf(&sb, "\n")
+        }
+        for i in 0..<indent+1 {
+            strings.write_string(&sb, "  ")
+        }
+    }
+    fmt.sbprintf(&sb, "]\n")
+    
+    for i in 0..<indent {
+        strings.write_string(&sb, "  ")
+    }
+    strings.write_string(&sb, ")")
+
+    return strings.to_string(sb)
 }
 
 function_to_string :: proc(function: Function, indent: int = 0) -> string {
@@ -292,7 +361,8 @@ token_to_string :: proc(token: Token) -> string {
     return strings.to_string(out)
 }
 
-to_string :: proc{kind_to_string, token_to_string, position_to_string, number_to_string, expression_to_string, literal_to_string, function_to_string}
+to_string :: proc{kind_to_string, token_to_string, position_to_string, 
+    number_to_string, expression_to_string, literal_to_string, function_to_string, if_to_string}
 
 print_token :: proc(token: Token) {
     fmt.printf("%s\n", to_string(token))

@@ -1,0 +1,7 @@
+let x = 10
+let even = x % 2 == 0
+let ans = if even {
+    let num = "even"
+} else {
+    let num = "odd"
+}

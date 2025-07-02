@@ -149,7 +149,7 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             return .LESSGREATER
         case LPAREN: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE:
             return .LOWEST
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
@@ -303,15 +303,29 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
     }
 
     block := parse_block(p)
+    elze: [dynamic]^Expression
+
+    if expect(p, .ELSE) {
+
+        if !next_tok(p){
+            parser_errorf(curr_tok(p).pos, false, "Expected: ELSE block {{, got EOF", to_string(curr_tok(p).kind))
+        }
+
+        if !next_tok(p){
+            parser_errorf(curr_tok(p).pos, false, "Expected: ELSE block {{, got EOF", to_string(curr_tok(p).kind))
+        }
+        elze = parse_block(p)
+    }
 
 
     iff := If {
         cond = cond,
         body = block,
-        elze = nil,
+        elze = elze,
         pos = pos,
     }
 
+    fmt.printfln("%s", to_string(iff))
 
     if_exp := new(Expression, context.temp_allocator)
     if_exp.value = iff
@@ -409,7 +423,7 @@ has_infix_parser :: proc(kind: Kind) -> bool{
         case LET, FN, RETURN, IF, TRUE, FALSE, PRINT, IDENT, STRING, 
              DOT, EQUALS, INT64, FLOAT64, BSLASH, LPAREN, RPAREN, 
              LBRACKET, RBRACKET, LBRACE, RBRACE, SQUOTE, QUESTION_MARK, 
-             BANG, COMMA, NEWLINE, EOF: return false
+             BANG, COMMA, NEWLINE, EOF, ELSE: return false
     }
 
     assert(false, "UNREACHABLE")

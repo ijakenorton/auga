@@ -2,10 +2,18 @@ let x = 1 + 2
 let y = 10.1 + 20.4
 let z = 12000 * 80807
 let a = 3 / 1
-let name = "Jake"
-let add = fn a b {
-    let x = a + b
-    let y = x
+
+let func = fn a b {
+    let x = 1 + 2
+    let y = 10.1 + 20.4
+    let z = 12000 * 80807
+    let a = 3 / 1
+    let name = "Jake"
+    let add = fn a b {
+	let x = a + b
+	let y = x
+    }
+    let result = add(5 4)
 }
-let result = add(5 4)
+
 
