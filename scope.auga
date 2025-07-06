@@ -1,0 +1,7 @@
+let outer = 10
+
+let inner = fn {
+    let a = outer
+}
+
+inner()

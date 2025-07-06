@@ -3,7 +3,35 @@ package main
 import "core:os"
 import "core:fmt"
 
-Environment :: map[string]Literal_Value_Type
+Environment :: struct {
+    env: map[string]Literal_Value_Type,
+    parent: ^Environment,
+}
+
+// Recursive access of environments
+env_get :: proc(env: ^Environment, key: string) -> (Literal_Value_Type, bool){ 
+    result : Literal_Value_Type
+    ok : bool
+    max_depth := 50000
+    curr_env := env
+
+    for {
+        assert(max_depth >= 0, "Hit max scope depth, something went wrong")
+        result, ok = curr_env.env[key]
+
+        if ok {
+            return result, ok
+        }
+
+        if curr_env == nil {
+            return nil, ok
+        }
+        curr_env = curr_env.parent
+        max_depth -= 1
+    }
+
+    return result, false
+}
 
 literal_value_to_number :: proc(lit: Literal_Value_Type) -> Number {
     result : Number
@@ -221,7 +249,10 @@ eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_T
     // fmt.printfln("IDENT: %#v", literal_node)
     // fmt.printfln("ENV: %#v", env)
     
-    ident := env[literal_node.name]
+    ident, ok := env_get(env, literal_node.name)
+    if !ok {
+        parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", literal_node.name)
+    }
     switch t in ident {
         case Number: result = ident.(Number)
         case string: result = ident.(string)
@@ -259,7 +290,11 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     name := function_call.name
 
     //Ensure function exists, may be portable once there are multiple scopes, maybe have to be refactored
-    var := env[name]
+    var, ok := env_get(env, name)
+    if !ok {
+        parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", name)
+    }
+
     fn : Function
     switch t in var {
         case Function: fn = var.(Function)
@@ -269,26 +304,24 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     }
 
     param_length := len(params)
-
     arg_length := len(fn.args)
 
     func_env := make(map[string]Literal_Value_Type)
-    defer delete(func_env)
-
-    //Copy env for now, later can have a structure of envs, tree perhaps. Could look into how web assembly does it
-    for name, value in env {
-        func_env[name] = value
+    new_env := Environment{
+        parent = env,
+        env = func_env,
     }
+    defer delete(func_env)
 
     for i in 0..<len(params) {
         param_value := eval(env, params[i])
         arg_name := fn.args[i].value.(Identifier).name
-        func_env[arg_name] = param_value
+        new_env.env[arg_name] = param_value
     }
     
     // Execute function body
     for stmt in fn.value { 
-        result = eval(&func_env, stmt)  
+        result = eval(&new_env, stmt)  
     }
 
     return result
@@ -301,7 +334,7 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
             binding := node.value.(Binding)
             name := binding.name
             result = eval(env, binding.value)
-            env[name] = result
+            env.env[name] = result
         }
 
         case  If: assert(false, "Expected binding, found If")
@@ -321,16 +354,15 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
 eval_block :: proc(env: ^Environment, exps: [dynamic]^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     func_env := make(map[string]Literal_Value_Type)
-    defer delete(func_env)
-
-    //Copy env for now, later can have a structure of envs, tree perhaps. Could look into how web assembly does it
-    for name, value in env {
-        func_env[name] = value
+    new_env := Environment{
+        parent = env,
+        env = func_env,
     }
+    defer delete(func_env)
 
     // Execute function body
     for stmt in exps { 
-        result = eval(&func_env, stmt)  
+        result = eval(&new_env, stmt)  
     }
 
     return result
@@ -400,12 +432,24 @@ main :: proc() {
     // }
     // assert(false, "stop")
 
-    env := make(map[string]Literal_Value_Type)
+    func_env := make(map[string]Literal_Value_Type)
+    env := Environment{
+        parent = nil,
+        env = func_env,
+    }
+    defer delete(func_env)
+
 
 
     for node in ast {
         result := eval(&env, node)
-        fmt.printfln("RES: %#v", result)
+
+        switch t in result {
+            case Function:fmt.printfln("RES: %v", result) 
+            case Number: fmt.printfln("RES: %#v", result)
+            case string: fmt.printfln("RES: %#v", result)
+            case bool: fmt.printfln("RES: %#v", result)
+        }
     }
 
 
