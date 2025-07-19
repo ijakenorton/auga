@@ -407,7 +407,6 @@ main :: proc() {
 
     args := os.args
 
-    fmt.printfln("%v", len(args))
     if len(args) < 2 {
         fmt.println("USAGE: ./auga <source_file>")
         os.exit(69)
