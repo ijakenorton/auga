@@ -15,8 +15,13 @@ env_get :: proc(env: ^Environment, key: string) -> (Literal_Value_Type, bool){
     max_depth := 50000
     curr_env := env
 
+    //TODO clean this up
     for {
         assert(max_depth >= 0, "Hit max scope depth, something went wrong")
+
+        if curr_env == nil {
+            return nil, ok
+        }
         result, ok = curr_env.env[key]
 
         if ok {
@@ -286,40 +291,52 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     function_call := node.value.(Function_Call)
     params := function_call.params
     name := function_call.name
-
-    //Ensure function exists, may be portable once there are multiple scopes, maybe have to be refactored
-    var, ok := env_get(env, name)
-    if !ok {
-        parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", name)
-    }
-
     fn : Function
-    switch t in var {
-        case Function: fn = var.(Function)
-        case Number: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-        case string: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-        case bool: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-    }
 
-    param_length := len(params)
-    arg_length := len(fn.args)
+    if name == "print" {
+        // parser_errorf(node.pos, false, "Var: %s", name)
+        for param in params{
+            fmt.printf("%s", to_value_string(param, env))
+        }
 
-    func_env := make(map[string]Literal_Value_Type)
-    new_env := Environment{
-        parent = env,
-        env = func_env,
-    }
-    defer delete(func_env)
+        fmt.println()
 
-    for i in 0..<len(params) {
-        param_value := eval(env, params[i])
-        arg_name := fn.args[i].value.(Identifier).name
-        new_env.env[arg_name] = param_value
-    }
-    
-    // Execute function body
-    for stmt in fn.value { 
-        result = eval(&new_env, stmt)  
+        return true
+    } else {
+        var, ok := env_get(env, name)
+        if !ok {
+            parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", name)
+        }
+
+        switch t in var {
+            case Function: fn = var.(Function)
+            case Number: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+            case string: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+            case bool: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+        }
+
+        param_length := len(params)
+        arg_length := len(fn.args)
+
+        func_env := make(map[string]Literal_Value_Type)
+        new_env := Environment{
+            parent = env,
+            env = func_env,
+        }
+        defer delete(func_env)
+
+        for i in 0..<len(params) {
+            param_value := eval(env, params[i])
+            arg_name := fn.args[i].value.(Identifier).name
+            new_env.env[arg_name] = param_value
+        }
+        
+        // Execute function body
+        for stmt in fn.value { 
+            result = eval(&new_env, stmt)  
+        }
+
+        return result
     }
 
     return result
@@ -389,14 +406,25 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
 main :: proc() {
 
     args := os.args
+
+    fmt.printfln("%v", len(args))
     if len(args) < 2 {
         fmt.println("USAGE: ./auga <source_file>")
         os.exit(69)
     }
     name : string
     file_name: string
+    inflag: string
+    debug:= false
     args, name = shift(args)
     args, file_name = shift(args)
+
+    if len(args) > 0 {
+        args, inflag = shift(args)
+        if inflag == "debug" {
+            debug = true 
+        }
+    }
 
 
     raw_code, ok := os.read_entire_file_from_filename(file_name)
@@ -441,11 +469,13 @@ main :: proc() {
     for node in ast {
         result := eval(&env, node)
 
-        switch t in result {
-            case Function: fmt.printfln("RES: %s",function_to_string_small(result.(Function)))
-            case Number: fmt.printfln("RES: %#v",to_string(result))
-            case string: fmt.printfln("RES: %#v",to_string(result))
-            case bool: fmt.printfln("RES: %#v",to_string(result))
+        if debug {
+            switch t in result {
+                case Function: fmt.printfln("RES: %s",function_to_value_string(result.(Function)))
+                case Number: fmt.printfln("RES: %#v",to_string(result))
+                case string: fmt.printfln("RES: %#v",to_string(result))
+                case bool: fmt.printfln("RES: %#v",to_string(result))
+            }
         }
     }
 

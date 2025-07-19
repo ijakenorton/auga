@@ -84,15 +84,18 @@ if_to_string :: proc(iff: If, indent: int = 0) -> string {
     sb: strings.Builder
     strings.builder_init(&sb)
 
-    fmt.sbprintf(&sb, "IF(\n")
+    fmt.sbprintf(&sb, "If(\n")
         
     for i in 0..<indent+1 {
         strings.write_string(&sb, "  ")
     }
     fmt.sbprintf(&sb, "cond: (")
     fmt.sbprintf(&sb, "\n")
-    fmt.sbprintf(&sb, "%s", expression_to_string(iff.cond, indent+1))
+    fmt.sbprintf(&sb, "%s", expression_to_string(iff.cond, indent+2))
     fmt.sbprintf(&sb, "\n")
+    for i in 0..<indent+1 {
+        strings.write_string(&sb, "  ")
+    }
     fmt.sbprintf(&sb, "),\n")
     
     // Print body/value
@@ -106,7 +109,7 @@ if_to_string :: proc(iff: If, indent: int = 0) -> string {
             for j in 0..<indent+2 {
                 strings.write_string(&sb, "  ")
             }
-            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
+            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+1))
             if i < len(iff.body) - 1 {
                 fmt.sbprintf(&sb, ",")
             }
@@ -128,7 +131,7 @@ if_to_string :: proc(iff: If, indent: int = 0) -> string {
             for j in 0..<indent+2 {
                 strings.write_string(&sb, "  ")
             }
-            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
+            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+1))
             if i < len(iff.elze) - 1 {
                 fmt.sbprintf(&sb, ",")
             }
@@ -148,77 +151,111 @@ if_to_string :: proc(iff: If, indent: int = 0) -> string {
     return strings.to_string(sb)
 }
 
+function_to_value_string :: proc(function: Function, indent: int = 0) -> string {
+
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    fmt.sbprintf(&sb, "fn(")
+    
+    if len(function.args) > 0 {
+        for arg, i in function.args {
+            fmt.sbprintf(&sb, "%s", arg.value.(Identifier).name)
+            if i < len(function.args) - 1 {
+                fmt.sbprintf(&sb, " ")
+            }
+        }
+    }
+    strings.write_string(&sb, ")")
+
+    return strings.to_string(sb)
+}
 function_to_string :: proc(function: Function, indent: int = 0) -> string {
 
     sb: strings.Builder
     strings.builder_init(&sb)
 
-        fmt.sbprintf(&sb, "Function(\n")
-        
-        // Print arguments
+    fmt.sbprintf(&sb, "Function(\n")
+    
+    // Print arguments
+    for i in 0..<indent+1 {
+        strings.write_string(&sb, "  ")
+    }
+    fmt.sbprintf(&sb, "args: [")
+    if len(function.args) > 0 {
+        fmt.sbprintf(&sb, "\n")
+        for arg, i in function.args {
+            for j in 0..<indent+2 {
+                strings.write_string(&sb, "  ")
+            }
+            fmt.sbprintf(&sb, "%s", expression_to_string(arg, indent+2))
+            if i < len(function.args) - 1 {
+                fmt.sbprintf(&sb, ",")
+            }
+            fmt.sbprintf(&sb, "\n")
+        }
         for i in 0..<indent+1 {
             strings.write_string(&sb, "  ")
         }
-        fmt.sbprintf(&sb, "args: [")
-        if len(function.args) > 0 {
-            fmt.sbprintf(&sb, "\n")
-            for arg, i in function.args {
-                for j in 0..<indent+2 {
-                    strings.write_string(&sb, "  ")
-                }
-                fmt.sbprintf(&sb, "%s", expression_to_string(arg, indent+2))
-                if i < len(function.args) - 1 {
-                    fmt.sbprintf(&sb, ",")
-                }
-                fmt.sbprintf(&sb, "\n")
-            }
-            for i in 0..<indent+1 {
+    }
+    fmt.sbprintf(&sb, "],\n")
+    
+    // Print body/value
+    for i in 0..<indent+1 {
+        strings.write_string(&sb, "  ")
+    }
+    fmt.sbprintf(&sb, "body: [")
+    if len(function.value) > 0 {
+        fmt.sbprintf(&sb, "\n")
+        for stmt, i in function.value {
+            for j in 0..<indent+2 {
                 strings.write_string(&sb, "  ")
             }
+            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
+            if i < len(function.value) - 1 {
+                fmt.sbprintf(&sb, ",")
+            }
+            fmt.sbprintf(&sb, "\n")
         }
-        fmt.sbprintf(&sb, "],\n")
-        
-        // Print body/value
         for i in 0..<indent+1 {
             strings.write_string(&sb, "  ")
         }
-        fmt.sbprintf(&sb, "body: [")
-        if len(function.value) > 0 {
-            fmt.sbprintf(&sb, "\n")
-            for stmt, i in function.value {
-                for j in 0..<indent+2 {
-                    strings.write_string(&sb, "  ")
-                }
-                fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
-                if i < len(function.value) - 1 {
-                    fmt.sbprintf(&sb, ",")
-                }
-                fmt.sbprintf(&sb, "\n")
-            }
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-        }
-        fmt.sbprintf(&sb, "]\n")
-        
-        for i in 0..<indent {
-            strings.write_string(&sb, "  ")
-        }
-        strings.write_string(&sb, ")")
+    }
+    fmt.sbprintf(&sb, "]\n")
+    
+    for i in 0..<indent {
+        strings.write_string(&sb, "  ")
+    }
+    strings.write_string(&sb, ")")
 
     return strings.to_string(sb)
 }
 
-expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
+expression_to_value_string :: proc(expr: ^Expression, env: ^Environment, indent: int = 0) -> string {
     if expr == nil do return "nil"
     
     sb: strings.Builder
     strings.builder_init(&sb)
     
-    // Add indentation
-    for i in 0..<indent {
-        strings.write_string(&sb, "  ")
+    switch t in expr.value {
+       case ^Expression: { assert(false,"Not implemented") }
+       case Binop: { assert(false,"Not implemented") }
+       case Binding: { assert(false,"Not implemented") }
+       case Identifier: { return identifier_to_value_string(expr.value.(Identifier), env)}
+       case Function: { assert(false,"Not implemented") }
+       case Function_Call: { assert(false,"Not implemented") }
+       case Literal_Node: { 
+           return literal_to_string(expr.value.(Literal_Node).value)}
+       case If: { assert(false,"Not implemented") }
     }
+        
+        return strings.to_string(sb)
+}
+expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
+    if expr == nil do return "nil"
+    
+    sb: strings.Builder
+    strings.builder_init(&sb)
     
     switch t in expr.value {
         //Unsure if this is a problem
@@ -226,7 +263,7 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
             fmt.sbprintf(&sb, "Expression(%v)", expression_to_string(expr.value.(^Expression), indent+1))
 
         case  If: 
-            fmt.sbprintf(&sb, "If(%#v)", expr.value.(If))
+            fmt.sbprintf(&sb, "%s", if_to_string(expr.value.(If), indent+1))
         case Literal_Node:
             fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
             
@@ -235,15 +272,15 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         case Binding:
             binding := expr.value.(Binding)
             fmt.sbprintf(&sb, "Let(\n")
-            for i in 0..<indent+1 {
+            for i in 0..<indent+3 {
                 strings.write_string(&sb, "  ")
             }
             fmt.sbprintf(&sb, "name: %s,\n", binding.name)
-            for i in 0..<indent+1 {
+            for i in 0..<indent+3 {
                 strings.write_string(&sb, "  ")
             }
             fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.value, indent+1))
-            for i in 0..<indent {
+            for i in 0..<indent + 2 {
                 strings.write_string(&sb, "  ")
             }
             strings.write_string(&sb, ")")
@@ -345,6 +382,20 @@ number_to_string :: proc(num: Number) -> string {
     return strings.to_string(out)
 }
 
+identifier_to_value_string :: proc(identifier: Identifier, env: ^Environment, indent: int = 0) -> string { 
+    out: strings.Builder
+    strings.builder_init(&out)
+    name := identifier.name
+
+    fmt.sbprintf(&out ,"%s: ", name)
+    ident, ok := env_get(env, name)
+    if !ok {
+        parser_errorf(identifier.pos, false, "Var: %s, is undefined in the current scope", name)
+    }
+    fmt.sbprintf(&out ,"%s", literal_to_string(ident))
+    return strings.to_string(out)
+}
+
 bool_to_string :: proc(b: bool) -> string { 
     return b ? "True": "False"
 }
@@ -363,6 +414,8 @@ token_to_string :: proc(token: Token) -> string {
 
 to_string :: proc{kind_to_string, token_to_string, position_to_string, 
     number_to_string, expression_to_string, literal_to_string, function_to_string, if_to_string}
+
+to_value_string :: proc{expression_to_value_string, function_to_value_string, identifier_to_value_string}
 
 print_token :: proc(token: Token) {
     fmt.printf("%s\n", to_string(token))

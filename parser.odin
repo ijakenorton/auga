@@ -147,7 +147,8 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             return .PRODUCT
         case SAME:
             return .LESSGREATER
-        case LPAREN: 
+            //Hack for print at the moment
+        case LPAREN, PRINT: 
             return .CALL
         case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE:
             return .LOWEST
@@ -457,6 +458,9 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
             }
 
             return parse_identifier(p)
+        }
+        case PRINT: {
+            return parse_fn_call(p)
         }
         case INT64, FLOAT64: return parse_number(p)
         case STRING: return parse_string(p)
