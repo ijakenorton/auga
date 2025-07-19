@@ -246,8 +246,6 @@ eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_T
     result : Literal_Value_Type
 
     literal_node := node.value.(Identifier)
-    // fmt.printfln("IDENT: %#v", literal_node)
-    // fmt.printfln("ENV: %#v", env)
     
     ident, ok := env_get(env, literal_node.name)
     if !ok {
@@ -439,16 +437,15 @@ main :: proc() {
     }
     defer delete(func_env)
 
-
-
+    //main loop
     for node in ast {
         result := eval(&env, node)
 
         switch t in result {
-            case Function:fmt.printfln("RES: %v", result) 
-            case Number: fmt.printfln("RES: %#v", result)
-            case string: fmt.printfln("RES: %#v", result)
-            case bool: fmt.printfln("RES: %#v", result)
+            case Function: fmt.printfln("RES: %s",function_to_string_small(result.(Function)))
+            case Number: fmt.printfln("RES: %#v",to_string(result))
+            case string: fmt.printfln("RES: %#v",to_string(result))
+            case bool: fmt.printfln("RES: %#v",to_string(result))
         }
     }
 

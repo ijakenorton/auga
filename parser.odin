@@ -325,8 +325,6 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
         pos = pos,
     }
 
-    fmt.printfln("%s", to_string(iff))
-
     if_exp := new(Expression, context.temp_allocator)
     if_exp.value = iff
     if_exp.pos = pos
