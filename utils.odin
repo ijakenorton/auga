@@ -238,6 +238,7 @@ expression_to_value_string :: proc(expr: ^Expression, env: ^Environment, indent:
     strings.builder_init(&sb)
     
     switch t in expr.value {
+       case Return: { assert(false,"Not implemented") }
        case ^Expression: { assert(false,"Not implemented") }
        case Binop: { assert(false,"Not implemented") }
        case Binding: { assert(false,"Not implemented") }
@@ -261,6 +262,9 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         //Unsure if this is a problem
         case ^Expression: 
             fmt.sbprintf(&sb, "Expression(%v)", expression_to_string(expr.value.(^Expression), indent+1))
+        case  Return: {
+            assert(false,"Not implemented") 
+        }
 
         case  If: 
             fmt.sbprintf(&sb, "%s", if_to_string(expr.value.(If), indent+1))
@@ -415,7 +419,7 @@ token_to_string :: proc(token: Token) -> string {
 to_string :: proc{kind_to_string, token_to_string, position_to_string, 
     number_to_string, expression_to_string, literal_to_string, function_to_string, if_to_string}
 
-to_value_string :: proc{expression_to_value_string, function_to_value_string, identifier_to_value_string}
+to_value_string :: proc{expression_to_value_string, function_to_value_string, identifier_to_value_string, literal_to_string}
 
 print_token :: proc(token: Token) {
     fmt.printf("%s\n", to_string(token))

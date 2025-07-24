@@ -5,15 +5,31 @@ let a = 3 / 1
 
 let func = fn a b {
     let x = 1 + 2
+    print(x)
     let y = 10.1 + 20.4
+    print(y)
     let z = 12000 * 80807
+    print(z)
     let a = 3 / 1
+    print(a)
     let name = "Jake"
-    let add = fn a b {
-	let x = a + b
-	let y = x
+    print(name)
+
+    if ok {
+        return "success"
+    } else {
+        print("error")
     }
+    let add = fn a b {
+        let x = a + b
+        let y = x
+    }
+    print(add)
     let result = add(5 4)
+    print(result)
 }
 
-
+let ok = print(func(4 6))
+if ok {
+    print("ok")
+}
