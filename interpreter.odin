@@ -192,6 +192,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
 eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     switch t in node.value {
+        case  Return: parser_errorf(node.pos ,false, "Expected Binop got Return")
         case  If: parser_errorf(node.pos ,false, "Expected Binop got If")
         case  Function: parser_errorf(node.pos ,false, "Expected Binop got Function")
         case  Function_Call: parser_errorf(node.pos ,false, "Expected Binop got Function Call")
@@ -296,7 +297,9 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     if name == "print" {
         // parser_errorf(node.pos, false, "Var: %s", name)
         for param in params{
-            fmt.printf("%s", to_value_string(param, env))
+
+            param_value := eval(env, param)
+            fmt.printf("%s", to_value_string(param_value))
         }
 
         fmt.println()
@@ -352,6 +355,7 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
             env.env[name] = result
         }
 
+        case  Return: assert(false, "Expected binding, found Return")
         case  If: assert(false, "Expected binding, found If")
         case  Binop: assert(false, "Expected binding, found Binop")
         case  Identifier: assert(false, "Expected binding, found Identifier")
@@ -387,6 +391,8 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
     result : Literal_Value_Type
 
     switch t in node.value {
+
+        case Return: assert(false, "Expected binding, found Literal_Node") 
         case Literal_Node: result = eval_literal(env, node)
         case Identifier: result = eval_identifier(env, node)
         case Binding: result = eval_binding(env, node)

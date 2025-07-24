@@ -49,6 +49,11 @@ Literal_Node :: struct {
     value: Literal_Value_Type,
 }
 
+Return :: struct {
+    value: ^Expression,
+    pos: Position,
+}
+
 Binding :: struct {
     name: string,
     value: ^Expression,
@@ -105,6 +110,7 @@ Value_Type :: union {
     Function_Call,
     Literal_Node,
     If,
+    Return,
 }
 
 next_tok :: proc(p: ^Parser) -> bool {
@@ -332,6 +338,29 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
 
     return if_exp  
 }
+
+parse_return :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    exp := new(Expression, context.temp_allocator)
+
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
+    }
+    exp = parse_expression(p)
+
+    returnn := Return{
+        value = exp,
+        pos = pos,
+    }
+
+    return_exp := new(Expression, context.temp_allocator)
+    return_exp.value = returnn
+    return_exp.pos = pos
+
+    return return_exp  
+}
+
 parse_let :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
@@ -448,6 +477,7 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
     using Kind
     #partial switch (curr.kind) {
         case LET: return parse_let(p)
+        case RETURN: return parse_return(p)
         case IF: {
             res := parse_if(p)
             return res 
