@@ -99,6 +99,7 @@ Literal_Value_Type :: union {
     string,
     bool,
     Function,
+    Return_Value,
 }
 
 Value_Type :: union {
@@ -156,7 +157,7 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             //Hack for print at the moment
         case LPAREN, PRINT: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN:
             return .LOWEST
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
@@ -497,6 +498,7 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
         case TRUE, FALSE : return parse_boolean(p)
         case FN: return parse_fn_decl(p)
 
+        case RPAREN:    parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
         case: 
             parser_errorf(pos, false, "unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n \n%s",
                to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr))

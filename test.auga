@@ -13,9 +13,10 @@ let func = fn a b {
     let a = 3 / 1
     print(a)
     let name = "Jake"
-    print(name)
+    let ok = print(name)
 
     if ok {
+        print("ok")
         return "success"
     } else {
         print("error")
@@ -29,7 +30,5 @@ let func = fn a b {
     print(result)
 }
 
-let ok = print(func(4 6))
-if ok {
-    print("ok")
-}
+let out = print(func(4 6))
+print(out)

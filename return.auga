@@ -1,0 +1,22 @@
+let outer = fn bool {
+    let func = fn bool {
+        if bool {
+            return "true"
+        } else {
+            return "false"
+        }
+
+        return "UNREACHABLE"
+    }
+
+    let out = func(bool)
+    print(out)
+
+    if out == "true" {
+        return "outer_true"
+    }
+
+    return "outer_false"
+}
+
+print(outer(true))

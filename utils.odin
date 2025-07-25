@@ -74,6 +74,7 @@ literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
         case Number: return number_to_string(lit.(Number))
         case Function: return function_to_string(lit.(Function), indent)
         case bool : return boolean_to_string(lit.(bool))
+        case Return_Value : assert(false, "Not implemented")
     }
 
     assert(false, "UNREACHABLE")
