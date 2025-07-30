@@ -26,6 +26,8 @@ Token :: struct {
 Kind :: enum {
     LET,
     FN,
+    FOR,
+    WHILE,
     RETURN,
     IF,
     ELSE,
@@ -38,6 +40,9 @@ Kind :: enum {
     DOT,
     EQUALS,       
     SAME,
+    LT,
+    GT,
+    DOTDOT,
     INT64,
     FLOAT64,
     PLUS,
@@ -195,6 +200,8 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
     switch literal {
         case "let":    return .LET
         case "fn":     return .FN  
+        case "for":     return .FOR  
+        case "while": return .WHILE
         case "return": return .RETURN
         case "print": return .PRINT
         case "if": return .IF
@@ -312,6 +319,24 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                 next_char(l)
             }
 
+            case '<': {
+                token = Token{ 
+                    kind = LT,
+                    literal = "<",
+                    pos = l.pos
+                } 
+
+                next_char(l)
+            }
+            case '>': {
+                token = Token{ 
+                    kind = GT,
+                    literal = ">",
+                    pos = l.pos
+                } 
+
+                next_char(l)
+            }
             case '/': {
                 if peek_char(l) == '/' {
                     next_char(l)
@@ -429,6 +454,21 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
 
                 next_char(l)
             } 
+            case '.': {
+                if peek_char(l) == '.' {
+                    next_char(l)
+                    token = Token{ 
+                        kind = DOTDOT,
+                        literal = "..",
+                        pos = l.pos
+                    }
+                } else {
+
+                    assert(false, fmt.aprintf("%s Error: unexpected \".\"", to_string((l.pos))))
+                }
+
+                next_char(l)
+            }
             case ' ', '\n', '\t', '\r': {
                 assert(false, "SPACE leaked")
             }

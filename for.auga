@@ -1,0 +1,20 @@
+let main = fn {
+    while  {
+        print("while")
+    }
+
+    // while i < 10 {
+    //     print("while")
+    // }
+    // for ele .. elements .. {
+    //     print("ele .. elements ..")
+    // }
+    // for 0..10..1 {
+    //     print("0..10..1")
+    // }
+    // for let i = 0 .. i < 10 .. i++ {
+    //     print("let i = 0 .. i < 10 .. i++")
+    // }
+}
+
+print(outer())

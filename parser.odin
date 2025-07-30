@@ -189,6 +189,20 @@ next_and_expect :: proc(p: ^Parser, kind: Kind, loc := #caller_location) -> Toke
     return curr_tok(p)
 }
 
+create_expression :: proc(value: Value_Type, pos: Position) -> ^Expression {
+    exp := new(Expression, context.temp_allocator)
+    exp.value = value
+    exp.pos = pos
+    return exp
+}
+
+//Unsure if this is needed
+// create_expression_allocator :: proc(value: Value_Type, pos: Position, ctx: Allocator ) -> ^Expression {
+//     exp := new(Expression, context.temp_allocator)
+//     exp.value = value
+//     exp.pos = pos
+//     return exp
+// }
 
 parse_block :: proc(p: ^Parser) -> [dynamic]^Expression {
     curr := curr_tok(p)
@@ -222,7 +236,6 @@ parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
 
         //Unsure if this is quite right, might get stuck in infinite loop here if parse_expression doesnt move anywhere
         // if !next_tok(p){
-        //
         //     parser_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
         // }
     }
@@ -247,11 +260,7 @@ parse_fn_call :: proc(p: ^Parser) -> ^Expression {
         pos = pos,
     }
 
-    fn_call := new(Expression, context.temp_allocator)
-    fn_call.value = fn
-    fn_call.pos = pos
-
-    return fn_call  
+    return create_expression(fn, pos)  
 }
 
 parse_fn_args :: proc(p: ^Parser) -> [dynamic]^Expression {
@@ -284,11 +293,7 @@ parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
         pos = pos,
     }
 
-    fn_decl := new(Expression, context.temp_allocator)
-    fn_decl.value = fn
-    fn_decl.pos = pos
-
-    return fn_decl  
+    return create_expression(fn, pos)  
 }
 
 parse_if :: proc(p: ^Parser) -> ^Expression {
@@ -298,8 +303,7 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
         parser_errorf(curr.pos, false, "Unexpected EOF after IF")
     }
 
-    cond := new(Expression, context.temp_allocator)
-    cond = parse_expression(p)
+    cond := parse_expression(p)
 
     if !expect(p, .LBRACE) {
         parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
@@ -333,39 +337,29 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
         pos = pos,
     }
 
-    if_exp := new(Expression, context.temp_allocator)
-    if_exp.value = iff
-    if_exp.pos = pos
-
-    return if_exp  
+    return create_expression(iff, pos)  
 }
 
 parse_return :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
-    exp := new(Expression, context.temp_allocator)
 
     if !next_tok(p) {
         parser_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
     }
-    exp = parse_expression(p)
+    exp := parse_expression(p)
 
     returnn := Return{
         value = exp,
         pos = pos,
     }
 
-    return_exp := new(Expression, context.temp_allocator)
-    return_exp.value = returnn
-    return_exp.pos = pos
-
-    return return_exp  
+    return create_expression(returnn, pos)  
 }
 
 parse_let :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
-    exp := new(Expression, context.temp_allocator)
 
     curr = next_and_expect(p, .IDENT)
     name := curr.literal
@@ -375,7 +369,7 @@ parse_let :: proc(p: ^Parser) -> ^Expression {
     if !next_tok(p) {
         parser_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
     }
-    exp = parse_expression(p)
+    exp: = parse_expression(p)
 
     binding := Binding{
         name = name,
@@ -383,11 +377,7 @@ parse_let :: proc(p: ^Parser) -> ^Expression {
         pos = pos,
     }
 
-    let_exp := new(Expression, context.temp_allocator)
-    let_exp.value = binding
-    let_exp.pos = pos
-
-    return let_exp  
+    return create_expression(binding, pos)  
 }
 
 parse_string :: proc(p: ^Parser) -> ^Expression {
@@ -395,15 +385,12 @@ parse_string :: proc(p: ^Parser) -> ^Expression {
     pos := curr.pos
     value := curr.literal
     
-    lit := Literal_Node {
+    new_string := Literal_Node {
         value = value
     }
     
-    exp := new(Expression, context.temp_allocator)
-    exp.value = lit
-    exp.pos = pos
     next_tok(p)
-    return exp
+    return create_expression(new_string, pos)  
 }
 
 parse_number :: proc(p: ^Parser) -> ^Expression {
@@ -429,17 +416,86 @@ parse_number :: proc(p: ^Parser) -> ^Expression {
         }
     }
     
-    lit := Literal_Node {
+    new_number := Literal_Node {
+        value = value
+    }
+    next_tok(p)
+    return create_expression(new_number, pos)  
+}
+
+
+
+parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
+    curr := curr_tok(p) // This is now the operator token
+    pos := curr.pos
+    kind := curr.kind
+    operator_precedence := token_precedence(p)
+
+    to_binop_kind ::proc(pos: Position, kind: Kind) -> Binop_Kind {
+        #partial switch kind {
+            case Kind.PLUS: return Binop_Kind.PLUS
+            case Kind.MINUS: return Binop_Kind.MINUS
+            case Kind.MULTIPLY: return Binop_Kind.MULTIPLY
+            case Kind.DIVIDE: return Binop_Kind.DIVIDE
+            case Kind.MOD: return Binop_Kind.MOD
+            case Kind.SAME: return Binop_Kind.SAME
+            case : 
+                parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
+        }
+        assert(false, "UNREACHABLE")
+        return Binop_Kind.PLUS
+    }
+    
+    // Move past operator
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after %s", to_string(curr.kind))
+    }
+
+    right := parse_precedence(p, operator_precedence) 
+    binop := Binop {
+        kind = to_binop_kind(pos, kind),
+        left = left,
+        right = right, 
+    }
+
+    return create_expression(binop, pos)  
+}
+
+parse_boolean :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    value : Literal_Value_Type
+    
+    #partial switch (curr.kind) {
+        case Kind.FALSE: {
+            value = false
+        }
+        case Kind.TRUE: {
+            value = true
+        }
+    }
+    
+    new_boolean := Literal_Node {
         value = value
     }
     
-    exp := new(Expression, context.temp_allocator)
-    exp.value = lit
-    exp.pos = pos
     next_tok(p)
-    return exp
+
+    return create_expression(new_boolean, pos)  
 }
 
+parse_identifier :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    
+    ident := Identifier{
+        name = curr.literal,
+        pos = curr.pos
+    }
+    
+    next_tok(p)
+    return create_expression(ident, pos)  
+}
 
 parse_expression :: proc(p: ^Parser) -> ^Expression {
     return parse_precedence(p, .LOWEST)
@@ -448,17 +504,19 @@ parse_expression :: proc(p: ^Parser) -> ^Expression {
 has_infix_parser :: proc(kind: Kind) -> bool{
     using Kind
      switch kind {
-        case .PLUS, .MINUS, .MULTIPLY, .DIVIDE, .MOD, .SAME: return true
+        case .PLUS, .MINUS, .MULTIPLY, .DIVIDE, .MOD, .SAME, .LT, .GT: return true
         case LET, FN, RETURN, IF, TRUE, FALSE, PRINT, IDENT, STRING, 
              DOT, EQUALS, INT64, FLOAT64, BSLASH, LPAREN, RPAREN, 
              LBRACKET, RBRACKET, LBRACE, RBRACE, SQUOTE, QUESTION_MARK, 
-             BANG, COMMA, NEWLINE, EOF, ELSE: return false
+             BANG, COMMA, NEWLINE, EOF, ELSE, FOR, WHILE, DOTDOT: return false
+         
     }
 
     assert(false, "UNREACHABLE")
     return false
 }
- parse_precedence :: proc(p: ^Parser, precedence: Precedence) -> ^Expression {
+
+parse_precedence :: proc(p: ^Parser, precedence: Precedence) -> ^Expression {
     left := parse_prefix(p)
 
     for token_precedence(p) > precedence {
@@ -479,6 +537,12 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
     #partial switch (curr.kind) {
         case LET: return parse_let(p)
         case RETURN: return parse_return(p)
+        case INT64, FLOAT64: return parse_number(p)
+        case STRING: return parse_string(p)
+        case TRUE, FALSE : return parse_boolean(p)
+        case FN: return parse_fn_decl(p)
+        case RPAREN: parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
+
         case IF: {
             res := parse_if(p)
             return res 
@@ -490,103 +554,18 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
 
             return parse_identifier(p)
         }
+        //TODO refactor to more generic intrinsic handling at somepoint
         case PRINT: {
             return parse_fn_call(p)
         }
-        case INT64, FLOAT64: return parse_number(p)
-        case STRING: return parse_string(p)
-        case TRUE, FALSE : return parse_boolean(p)
-        case FN: return parse_fn_decl(p)
-
-        case RPAREN:    parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
         case: 
-            parser_errorf(pos, false, "unknown prefix expression expected LET | IDENT | INT64 | FLOAT64: %s, got %s\n \n%s",
-               to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr))
+            parser_errorf(pos, false, "unknown prefix expression %s, got %s\n \n%s",
+                to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr))
     }
     //UNREACHABLE
     return nil
 }
 
-to_binop_kind ::proc(pos: Position ,kind: Kind) -> Binop_Kind {
-    #partial switch kind {
-        case Kind.PLUS: return Binop_Kind.PLUS
-        case Kind.MINUS: return Binop_Kind.MINUS
-        case Kind.MULTIPLY: return Binop_Kind.MULTIPLY
-        case Kind.DIVIDE: return Binop_Kind.DIVIDE
-        case Kind.MOD: return Binop_Kind.MOD
-        case Kind.SAME: return Binop_Kind.SAME
-        case : 
-            parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
-    }
-    assert(false, "UNREACHABLE")
-    return Binop_Kind.PLUS
-}
-
-parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
-    curr := curr_tok(p) // This is now the operator token
-    pos := curr.pos
-    kind := curr.kind
-    operator_precedence := token_precedence(p)
-    
-    // Move past operator
-    if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after %s", to_string(curr.kind))
-    }
-
-    right := parse_precedence(p, operator_precedence) 
-    binop := Binop {
-        kind = to_binop_kind(pos, kind),
-        left = left,
-        right = right, 
-    }
-
-    exp := new(Expression, context.temp_allocator)
-    exp.value = binop
-    exp.pos = pos
-
-    return exp
-}
-
-parse_boolean :: proc(p: ^Parser) -> ^Expression {
-    curr := curr_tok(p)
-    pos := curr.pos
-    value : Literal_Value_Type
-    
-    #partial switch (curr.kind) {
-        case Kind.FALSE: {
-            value = false
-        }
-        case Kind.TRUE: {
-            value = true
-        }
-    }
-    
-    lit := Literal_Node {
-        value = value
-    }
-    
-    exp := new(Expression, context.temp_allocator)
-    exp.value = lit
-    exp.pos = pos
-    next_tok(p)
-    return exp
-}
-
-parse_identifier :: proc(p: ^Parser) -> ^Expression {
-    curr := curr_tok(p)
-    
-    ident := Identifier{
-        name = curr.literal,
-        pos = curr.pos
-    }
-    
-    exp := new(Expression, context.temp_allocator)
-    exp.value = ident
-    exp.pos = curr.pos
-
-    next_tok(p)
-    return exp
-}
 
 parse :: proc(p: ^Parser) -> [dynamic]^Expression {
     exp : ^Expression 
@@ -597,7 +576,6 @@ parse :: proc(p: ^Parser) -> [dynamic]^Expression {
 
     next_tok(p)
 
-    using Kind
     for {
         exp := parse_expression(p)
         append(&ast, exp)
@@ -605,10 +583,6 @@ parse :: proc(p: ^Parser) -> [dynamic]^Expression {
         if (peek_tok(p).kind == Kind.EOF){
             break
         }
-
-        // if !next_tok(p) {
-        //     break
-        // }
 
     }
 
