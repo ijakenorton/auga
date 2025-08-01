@@ -244,6 +244,7 @@ expression_to_value_string :: proc(expr: ^Expression, env: ^Environment, indent:
     strings.builder_init(&sb)
     
     switch t in expr.value {
+       case While: { assert(false,"Not implemented") }
        case Return: { assert(false,"Not implemented") }
        case ^Expression: { assert(false,"Not implemented") }
        case Binop: { assert(false,"Not implemented") }
@@ -269,6 +270,10 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         case ^Expression: 
             fmt.sbprintf(&sb, "Expression(%v)", expression_to_string(expr.value.(^Expression), indent+1))
         case  Return: {
+            assert(false,"Not implemented") 
+        }
+
+        case  While: {
             assert(false,"Not implemented") 
         }
 

@@ -66,6 +66,11 @@ If :: struct {
     elze: [dynamic]^Expression,
     pos: Position,
 }
+While :: struct {
+    cond: ^Expression,
+    body: [dynamic]^Expression,
+    pos: Position,
+}
 
 Identifier :: struct {
     name: string,
@@ -111,6 +116,7 @@ Value_Type :: union {
     Function_Call,
     Literal_Node,
     If,
+    While,
     Return,
 }
 
@@ -157,7 +163,7 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             //Hack for print at the moment
         case LPAREN, PRINT: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN, WHILE:
             return .LOWEST
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
@@ -296,6 +302,39 @@ parse_fn_decl :: proc(p: ^Parser) -> ^Expression {
     return create_expression(fn, pos)  
 }
 
+parse_while :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    cond : ^Expression = nil
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after WHILE")
+    }
+
+    if expect(p, .LBRACE) {
+    } else {
+        cond = parse_expression(p)
+
+        if !expect(p, .LBRACE) {
+            parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
+                to_string(curr_tok(p).kind))
+        }
+
+    }
+
+    if !next_tok(p){
+        parser_errorf(curr_tok(p).pos, false, "Expected: WHILE block {{, got EOF", to_string(curr_tok(p).kind))
+    }
+
+    block := parse_block(p)
+
+    whilee := While {
+        cond = cond,
+        body = block,
+        pos = pos,
+    }
+
+    return create_expression(whilee, pos)  
+}
 parse_if :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
@@ -535,16 +574,20 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
     pos := curr.pos
     using Kind
     #partial switch (curr.kind) {
+        case FN: return parse_fn_decl(p)
         case LET: return parse_let(p)
         case RETURN: return parse_return(p)
-        case INT64, FLOAT64: return parse_number(p)
-        case STRING: return parse_string(p)
         case TRUE, FALSE : return parse_boolean(p)
-        case FN: return parse_fn_decl(p)
-        case RPAREN: parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
+        case STRING: return parse_string(p)
+        case INT64, FLOAT64: return parse_number(p)
 
         case IF: {
             res := parse_if(p)
+            return res 
+        }
+
+        case WHILE: {
+            res := parse_while(p)
             return res 
         }
         case IDENT: {
@@ -558,6 +601,8 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
         case PRINT: {
             return parse_fn_call(p)
         }
+
+        case RPAREN: parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
         case: 
             parser_errorf(pos, false, "unknown prefix expression %s, got %s\n \n%s",
                 to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr))

@@ -1,11 +1,12 @@
 let main = fn {
-    while  {
-        print("while")
-    }
-
-    // while i < 10 {
+    // while  {
     //     print("while")
     // }
+
+    let i = 10
+    while i == 10 {
+        let i = i - 1
+    }
     // for ele .. elements .. {
     //     print("ele .. elements ..")
     // }
@@ -17,4 +18,4 @@ let main = fn {
     // }
 }
 
-print(outer())
+print(main())

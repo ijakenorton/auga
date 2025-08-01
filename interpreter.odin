@@ -95,6 +95,24 @@ eval_add :: proc(left: Number, right: Number) -> Number {
     return i64(0) // UNREACHABLE
 }
 
+eval_minus :: proc(left: Number, right: Number) -> Number {
+    switch l in left {
+    case f64:
+        switch r in right {
+            case f64: return l - r    
+            case i64: return l - f64(r)
+        }
+    case i64:
+        switch r in right {
+            case f64: return f64(l) - r
+            case i64: return l - r    
+        }
+
+    }
+
+    assert(false, "UNREACHABLE")
+    return i64(0) // UNREACHABLE
+}
 
 eval_mul :: proc(left: Number, right: Number) -> Number {
     switch l in left {
@@ -132,6 +150,49 @@ eval_div :: proc(left: Number, right: Number) -> Number {
     return i64(0) // UNREACHABLE
 }
 
+eval_while :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+    result : Literal_Value_Type
+
+    while_node := node.value.(While)
+    unwrapped_cond : bool
+
+    func_env := make(map[string]Literal_Value_Type)
+    new_env := Environment{
+        parent = env,
+        env = func_env,
+    }
+    defer delete(func_env)
+    for {
+        if while_node.cond == nil {
+            unwrapped_cond = true
+        } else {
+            cond := eval(&new_env, while_node.cond)
+
+            switch t in cond {
+                case Number: parser_errorf(while_node.pos ,false, 
+                     "If condition expression must result in a boolean, found Number")
+                case Return_Value: parser_errorf(while_node.pos ,false, 
+                     "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
+                case Function: parser_errorf(while_node.pos ,false, 
+                     "If condition expression must result in a boolean, found Function")
+                case string: parser_errorf(while_node.pos ,false, 
+                     "If condition expression must result in a boolean, found String")
+                case bool : 
+                    unwrapped_cond = cond.(bool)
+            }
+        }
+
+
+        if unwrapped_cond {
+
+            result = eval_block(&new_env, while_node.body)
+        } else {
+            return result
+        }
+    }
+
+    return result
+}
 eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
 
@@ -147,8 +208,21 @@ eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     }
 
     if cond.(bool) {
+        func_env := make(map[string]Literal_Value_Type)
+        new_env := Environment{
+            parent = env,
+            env = func_env,
+        }
+        defer delete(func_env)
         result = eval_block(env, if_node.body)
+
     } else if if_node.elze != nil {
+        func_env := make(map[string]Literal_Value_Type)
+        new_env := Environment{
+            parent = env,
+            env = func_env,
+        }
+        defer delete(func_env)
         result = eval_block(env, if_node.elze)
     }
 
@@ -209,6 +283,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
 eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     switch t in node.value {
+        case  While: parser_errorf(node.pos ,false, "Expected Binop got While")
         case  Return: parser_errorf(node.pos ,false, "Expected Binop got Return")
         case  If: parser_errorf(node.pos ,false, "Expected Binop got If")
         case  Function: parser_errorf(node.pos ,false, "Expected Binop got Function")
@@ -232,7 +307,9 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
                     result = eval_add(left_number, right_number)
                 }
                 case .MINUS : {
-                    assert(false, "NOT IMPLEMENTED")
+                    left_number := literal_value_to_number(left)
+                    right_number := literal_value_to_number(right) 
+                    result = eval_minus(left_number, right_number)
                 }
                 case .MULTIPLY: {
                     left_number := literal_value_to_number(left)
@@ -360,19 +437,7 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
             new_env.env[arg_name] = param_value
         }
         
-        // Execute function body
-        for stmt in fn.value { 
-            result = eval(&new_env, stmt)  
-            switch t in result {
-                case Return_Value: return result.(Return_Value).value^
-                case Function:
-                case Number:
-                case string:
-                case bool:
-            }
-        }
-
-        
+        result = eval_block(&new_env, fn.value)
 
         return result
     }
@@ -390,6 +455,7 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
             env.env[name] = result
         }
 
+        case  While: assert(false, "Expected binding, found While")
         case  Return: assert(false, "Expected binding, found Return")
         case  If: assert(false, "Expected binding, found If")
         case  Binop: assert(false, "Expected binding, found Binop")
@@ -407,16 +473,17 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
 // Unsure if this should take a block type or [dynamic]^Expression. Maybe after type refactor will be more obvious
 eval_block :: proc(env: ^Environment, exps: [dynamic]^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
-    func_env := make(map[string]Literal_Value_Type)
-    new_env := Environment{
-        parent = env,
-        env = func_env,
-    }
-    defer delete(func_env)
 
     // Execute function body
     for stmt in exps { 
-        result = eval(&new_env, stmt)  
+        result = eval(env, stmt)  
+        switch t in result {
+            case Return_Value: return result.(Return_Value).value^
+            case Function:
+            case Number:
+            case string:
+            case bool:
+        }
     }
 
     return result
@@ -442,6 +509,7 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
         case Function_Call: result = eval_function_call(env, node)
         case Binop: result = eval_binop(env, node)
         case If: result = eval_if(env, node)
+        case While: result = eval_while(env, node)
         // Unsure if this is the right move...
         case ^Expression: result = eval(env, node.value.(^Expression))
     }
