@@ -73,6 +73,13 @@ While :: struct {
     body: [dynamic]^Expression,
     pos: Position,
 }
+For :: struct {
+    cond: ^Expression,
+    iterator: ^Expression,
+    update_exp: ^Expression,
+    body: [dynamic]^Expression,
+    pos: Position,
+}
 
 Identifier :: struct {
     name: string,
@@ -119,6 +126,7 @@ Value_Type :: union {
     Literal_Node,
     If,
     While,
+    For,
     Return,
 }
 
@@ -165,7 +173,7 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             //Hack for print at the moment
         case LPAREN, PRINT: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN, WHILE:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN, WHILE, FOR, DOTDOT:
             return .LOWEST
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
@@ -336,6 +344,60 @@ parse_while :: proc(p: ^Parser) -> ^Expression {
     }
 
     return create_expression(whilee, pos)  
+}
+
+parse_for :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    pos := curr.pos
+    cond : ^Expression = nil
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after FOR")
+    }
+    print_token(curr_tok(p))
+
+    iterator := parse_expression(p)
+    if !expect(p, .DOTDOT) {
+        parser_errorf(curr.pos, false, "Expected: DOTDOT `..`, got %s, \n%s Error: Calling function\n", 
+            to_string(curr_tok(p).kind))
+    }
+
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after DOTDOT")
+    }
+
+    cond = parse_expression(p)
+
+    if !expect(p, .DOTDOT) {
+        parser_errorf(curr.pos, false, "Expected: DOTDOT `..`, got %s, \n%s Error: Calling function\n", 
+            to_string(curr_tok(p).kind))
+    }
+    
+    if !next_tok(p) {
+        parser_errorf(curr.pos, false, "Unexpected EOF after DOTDOT")
+    }
+
+    update_exp := parse_expression(p)
+
+    if !expect(p, .LBRACE) {
+        parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
+            to_string(curr_tok(p).kind))
+    }
+
+    if !next_tok(p){
+        parser_errorf(curr_tok(p).pos, false, "Expected: IF block {{, got EOF", to_string(curr_tok(p).kind))
+    }
+
+    block := parse_block(p)
+
+    forr := For {
+        iterator = iterator,
+        update_exp = update_exp,
+        cond = cond,
+        body = block,
+        pos = pos,
+    }
+
+    return create_expression(forr, pos)  
 }
 parse_if :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
@@ -589,9 +651,12 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
             res := parse_if(p)
             return res 
         }
-
         case WHILE: {
             res := parse_while(p)
+            return res 
+        }
+        case FOR: {
+            res := parse_for(p)
             return res 
         }
         case IDENT: {

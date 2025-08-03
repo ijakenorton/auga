@@ -186,6 +186,64 @@ eval_gt :: proc(left: Number, right: Number) -> bool {
     return false
 }
 
+// TODO add better checking, very much happy path currently
+// Also needs to handle other for constructions e.g: 
+//     for 0 .. 10 .. 1 {
+//         print("0..10..1")
+//     }
+//     for ele .. elements .. {
+//         print("ele .. elements ..")
+//     }
+eval_for :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+    result : Literal_Value_Type
+
+    for_node := node.value.(For)
+    // fmt.printf("cond: %s", to_string(for_node.cond))
+    // fmt.printf("update_exp: %s", to_string(for_node.update_exp))
+    // fmt.printf("iterator: %s", to_string(for_node.iterator))
+
+    // assert(false, "NOT IMPLEMENTED")
+    unwrapped_cond : bool
+
+    func_env := make(map[string]Literal_Value_Type)
+    new_env := Environment{
+        parent = env,
+        env = func_env,
+    }
+    defer delete(func_env)
+
+    binding := for_node.iterator.value.(Binding)
+    result = eval(env, binding.value)
+    env.env[binding.name] = result
+    for {
+        cond := eval(&new_env, for_node.cond)
+        switch t in cond {
+            case Number: parser_errorf(for_node.pos ,false, 
+                 "If condition expression must result in a boolean, found Number")
+            case Return_Value: parser_errorf(for_node.pos ,false, 
+                 "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
+            case Function: parser_errorf(for_node.pos ,false, 
+                 "If condition expression must result in a boolean, found Function")
+            case string: parser_errorf(for_node.pos ,false, 
+                 "If condition expression must result in a boolean, found String")
+            case bool : 
+                unwrapped_cond = cond.(bool)
+        }
+
+        if unwrapped_cond {
+            result = eval_block(&new_env, for_node.body)
+        } else {
+            return result
+        }
+
+        update_exp := eval(&new_env, for_node.update_exp)
+        //TODO Unsure if this is the move but will work for the time being
+        env.env[binding.name] = update_exp
+    }
+
+    return result
+}
+
 eval_while :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
 
@@ -320,6 +378,7 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     switch t in node.value {
         case  While: parser_errorf(node.pos ,false, "Expected Binop got While")
+        case  For: parser_errorf(node.pos ,false, "Expected Binop got For")
         case  Return: parser_errorf(node.pos ,false, "Expected Binop got Return")
         case  If: parser_errorf(node.pos ,false, "Expected Binop got If")
         case  Function: parser_errorf(node.pos ,false, "Expected Binop got Function")
@@ -502,6 +561,7 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
         }
 
         case  While: assert(false, "Expected binding, found While")
+        case  For: assert(false, "Expected binding, found For")
         case  Return: assert(false, "Expected binding, found Return")
         case  If: assert(false, "Expected binding, found If")
         case  Binop: assert(false, "Expected binding, found Binop")
@@ -546,7 +606,6 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
     result : Literal_Value_Type
 
     switch t in node.value {
-
         case Return: result = eval_return(env, node) 
         case Literal_Node: result = eval_literal(env, node)
         case Identifier: result = eval_identifier(env, node)
@@ -556,6 +615,7 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
         case Binop: result = eval_binop(env, node)
         case If: result = eval_if(env, node)
         case While: result = eval_while(env, node)
+        case For: result = eval_for(env, node)
         // Unsure if this is the right move...
         case ^Expression: result = eval(env, node.value.(^Expression))
     }

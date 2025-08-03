@@ -1,20 +1,26 @@
 let main = fn {
-    // while  {
-    //     print("while")
+    // while {
+    //     print("infinite")
     // }
 
-    let i = 10
-    while i == 10 {
-        let i = i - 1
+    let i = 0
+    while i < 10 {
+        print(i)
+        let i = i + 1
     }
-    // for ele .. elements .. {
-    //     print("ele .. elements ..")
-    // }
-    // for 0..10..1 {
+
+    for let i = 0 .. i < 10 .. i + 1 {
+        print(i)
+    }
+    for let i = 10 .. i > 0 .. i - 1 {
+        print(i)
+    }
+
+    // for 0 .. 10 .. 1 {
     //     print("0..10..1")
     // }
-    // for let i = 0 .. i < 10 .. i++ {
-    //     print("let i = 0 .. i < 10 .. i++")
+    // for ele .. elements .. {
+    //     print("ele .. elements ..")
     // }
 }
 

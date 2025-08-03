@@ -245,6 +245,7 @@ expression_to_value_string :: proc(expr: ^Expression, env: ^Environment, indent:
     
     switch t in expr.value {
        case While: { assert(false,"Not implemented") }
+       case For: { assert(false,"Not implemented") }
        case Return: { assert(false,"Not implemented") }
        case ^Expression: { assert(false,"Not implemented") }
        case Binop: { assert(false,"Not implemented") }
@@ -277,6 +278,9 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
             assert(false,"Not implemented") 
         }
 
+        case  For: {
+            assert(false,"Not implemented") 
+        }
         case  If: 
             fmt.sbprintf(&sb, "%s", if_to_string(expr.value.(If), indent+1))
         case Literal_Node:
