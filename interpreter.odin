@@ -150,6 +150,42 @@ eval_div :: proc(left: Number, right: Number) -> Number {
     return i64(0) // UNREACHABLE
 }
 
+eval_lt :: proc(left: Number, right: Number) -> bool {
+    switch l in left {
+    case f64:
+        switch r in right {
+            case f64: return l < r    
+            case i64: return l < f64(r) 
+        }
+    case i64:
+        switch r in right {
+            case f64: return f64(l) < r 
+            case i64: return l < r     
+        }
+    }
+
+    assert(false, "UNREACHABLE")
+    return false
+}
+
+eval_gt :: proc(left: Number, right: Number) -> bool {
+    switch l in left {
+    case f64:
+        switch r in right {
+            case f64: return l > r     
+            case i64: return l > f64(r) 
+        }
+    case i64:
+        switch r in right {
+            case f64: return f64(l) > r  
+            case i64: return l > r
+        }
+    }
+
+    assert(false, "UNREACHABLE")
+    return false
+}
+
 eval_while :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
 
@@ -300,6 +336,16 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
             switch binop.kind {
                 case .SAME : {
                     result = eval_same(left, right)
+                }
+                case .LT : {
+                    left_number := literal_value_to_number(left)
+                    right_number := literal_value_to_number(right) 
+                    result = eval_lt(left_number, right_number)
+                }
+                case .GT : {
+                    left_number := literal_value_to_number(left)
+                    right_number := literal_value_to_number(right) 
+                    result = eval_gt(left_number, right_number)
                 }
                 case .PLUS : {
                     left_number := literal_value_to_number(left)

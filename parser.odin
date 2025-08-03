@@ -35,6 +35,8 @@ Binop_Kind :: enum {
     DIVIDE,       
     MOD,
     SAME,
+    LT,
+    GT,
 }
 
 
@@ -158,7 +160,7 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             return .SUM
         case MULTIPLY, DIVIDE, MOD:
             return .PRODUCT
-        case SAME:
+        case SAME, LT, GT:
             return .LESSGREATER
             //Hack for print at the moment
         case LPAREN, PRINT: 
@@ -478,6 +480,8 @@ parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
             case Kind.DIVIDE: return Binop_Kind.DIVIDE
             case Kind.MOD: return Binop_Kind.MOD
             case Kind.SAME: return Binop_Kind.SAME
+            case Kind.LT: return Binop_Kind.LT
+            case Kind.GT: return Binop_Kind.GT
             case : 
                 parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
         }

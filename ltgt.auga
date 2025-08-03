@@ -1,0 +1,13 @@
+let lt = 1 < 2
+print(lt)
+let eq = 2 < 2
+print(eq)
+let gt = 3 < 2
+print(gt)
+
+let lt = 1 > 2
+print(lt)
+let eq = 2 > 2
+print(eq)
+let gt = 3 > 2
+print(gt)
