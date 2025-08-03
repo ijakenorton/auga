@@ -10,10 +10,14 @@ Dynamically scoped (may change to lexical, unsure), interpretted expression base
 - Function call
 - If
 - Else
+- While
+- For
 - Return
 - Add
 - Divide
 - Multiply
+- Less than
+- Greater than
 - Same (equality)
 - Print to stdout intrinsic
 
@@ -35,6 +39,6 @@ odin build .
 #./auga <input_file.auga>
 ./auga test.auga
 ./auga test.auga debug
-# Debug flag prints out the outer mode env state, can be useful though rudimentary stage
+# Debug flag prints out the outer most env state, can be useful though at a rudimentary stage
 ```
 
