@@ -178,6 +178,7 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
         case:
             parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
             //UNREACHABLE
+            assert(false, "UNREACHABLE")
             return .LOWEST
     }
 }
@@ -261,7 +262,8 @@ parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
 
     return params
 }
-//Fix missing funciont call
+
+//Fix missing function call
 parse_fn_call :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     name := curr.literal
@@ -353,7 +355,6 @@ parse_for :: proc(p: ^Parser) -> ^Expression {
     if !next_tok(p) {
         parser_errorf(curr.pos, false, "Unexpected EOF after FOR")
     }
-    print_token(curr_tok(p))
 
     iterator := parse_expression(p)
     if !expect(p, .DOTDOT) {
@@ -399,6 +400,7 @@ parse_for :: proc(p: ^Parser) -> ^Expression {
 
     return create_expression(forr, pos)  
 }
+
 parse_if :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
@@ -525,8 +527,6 @@ parse_number :: proc(p: ^Parser) -> ^Expression {
     next_tok(p)
     return create_expression(new_number, pos)  
 }
-
-
 
 parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
     curr := curr_tok(p) // This is now the operator token
@@ -677,9 +677,9 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
                 to_string(curr.kind), to_string(curr_tok(p).kind), to_string(curr))
     }
     //UNREACHABLE
+    assert(false, "UNREACHABLE")
     return nil
 }
-
 
 parse :: proc(p: ^Parser) -> [dynamic]^Expression {
     exp : ^Expression 

@@ -5,16 +5,35 @@ let main = fn {
 
     let i = 0
     while i < 10 {
-        print(i)
+        print("while: " i)
         let i = i + 1
     }
+    print()
 
     for let i = 0 .. i < 10 .. i + 1 {
-        print(i)
+        print("for_inc: " i)
     }
+    print()
+
+    for let i = 0 .. i < 10 .. i + 3 {
+        print("for_inc: " i)
+    }
+    print()
+
+    for let i = 0 .. i < 10 .. i + 1.2 {
+        print("for_inc: " i)
+    }
+    print()
+
     for let i = 10 .. i > 0 .. i - 1 {
-        print(i)
+        print("for_dec: " i)
     }
+    print()
+
+    for let i = 10 .. i > 0 .. i - 2 {
+        print("for_dec: " i)
+    }
+    print()
 
     // for 0 .. 10 .. 1 {
     //     print("0..10..1")
