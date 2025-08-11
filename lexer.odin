@@ -56,6 +56,8 @@ Kind :: enum {
     RBRACKET,       
     LBRACE,       
     RBRACE,       
+    LBLOCK,       
+    RBLOCK,       
     SQUOTE,       
     QUESTION_MARK,
     BANG,         
@@ -198,9 +200,9 @@ lex_identifier :: proc(l: ^Lexer) -> Token {
 
 keyword_or_identifier :: proc(literal: string) -> Kind {
     switch literal {
-        case "let":    return .LET
-        case "fn":     return .FN  
-        case "for":     return .FOR  
+        case "let": return .LET
+        case "fn": return .FN  
+        case "for": return .FOR  
         case "while": return .WHILE
         case "return": return .RETURN
         case "print": return .PRINT
@@ -208,7 +210,7 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
         case "else": return .ELSE
         case "true": return .TRUE
         case "false": return .FALSE
-        case:          return .IDENT
+        case: return .IDENT
     }
 }
 
@@ -375,6 +377,24 @@ lex :: proc(l: ^Lexer) -> [dynamic]Token {
                 token = Token{ 
                     kind = RPAREN,
                     literal = ")",
+                    pos = l.pos
+                }
+                next_char(l)
+            } 
+
+            case '[': { 
+                token = Token{ 
+                    kind = LBLOCK,
+                    literal = "[",
+                    pos = l.pos
+                }
+                next_char(l)
+            } 
+
+            case ']': { 
+                token = Token{ 
+                    kind = RBLOCK,
+                    literal = "]",
                     pos = l.pos
                 }
                 next_char(l)

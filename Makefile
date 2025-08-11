@@ -1,6 +1,9 @@
 auga:
 	odin build .
 
+array: auga 
+	./auga array.auga
+
 for: auga 
 	./auga for.auga
 

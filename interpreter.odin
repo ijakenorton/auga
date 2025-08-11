@@ -49,8 +49,9 @@ literal_value_to_number :: proc(lit: Literal_Value_Type) -> Number {
         case Number: result = lit.(Number)
         case Function: assert(false, "Must be a LITERAL NUMBER not Function, perhaps this should try to eval the function?")
         case string: assert(false, "Must be a LITERAL NUMBER not string")
-        case bool : assert(false, "Must be a LITERAL NUMBER not bool")
-        case Return_Value : assert(false, "Must be a LITERAL NUMBER not Return_Value")
+        case bool: assert(false, "Must be a LITERAL NUMBER not bool")
+        case Return_Value: assert(false, "Must be a LITERAL NUMBER not Return_Value")
+        case Array_Literal: assert(false, "Must be a LITERAL NUMBER not Array_Literal literal")
     }
 
     return  result
@@ -68,6 +69,7 @@ literal_to_number :: proc(node: ^Expression) -> Number {
         case Return_Value: assert(false, "Must be a LITERAL NUMBER not return value, perhaps this should try to unwrap the Return_Value?")
         case string: assert(false, "Must be a LITERAL NUMBER not string")
         case bool : assert(false, "Must be a LITERAL NUMBER not bool")
+        case Array_Literal : assert(false, "Must be a LITERAL NUMBER not Array_Literal")
     }
 
     return  result
@@ -220,12 +222,14 @@ eval_for :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
         switch t in cond {
             case Number: parser_errorf(for_node.pos ,false, 
                  "If condition expression must result in a boolean, found Number")
-            case Return_Value: parser_errorf(for_node.pos ,false, 
-                 "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
             case Function: parser_errorf(for_node.pos ,false, 
                  "If condition expression must result in a boolean, found Function")
             case string: parser_errorf(for_node.pos ,false, 
                  "If condition expression must result in a boolean, found String")
+            case Return_Value: parser_errorf(for_node.pos ,false, 
+                 "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
+            case Array_Literal: parser_errorf(for_node.pos ,false, 
+                 "If condition expression must result in a boolean, found Array_Literal")
             case bool : 
                 unwrapped_cond = cond.(bool)
         }
@@ -265,12 +269,14 @@ eval_while :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
             switch t in cond {
                 case Number: parser_errorf(while_node.pos ,false, 
                      "If condition expression must result in a boolean, found Number")
-                case Return_Value: parser_errorf(while_node.pos ,false, 
-                     "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
                 case Function: parser_errorf(while_node.pos ,false, 
                      "If condition expression must result in a boolean, found Function")
                 case string: parser_errorf(while_node.pos ,false, 
                      "If condition expression must result in a boolean, found String")
+                case Return_Value: parser_errorf(while_node.pos ,false, 
+                     "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
+                case Array_Literal: parser_errorf(while_node.pos ,false, 
+                     "If condition expression must result in a boolean, found Array_Literal")
                 case bool : 
                     unwrapped_cond = cond.(bool)
             }
@@ -295,9 +301,10 @@ eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
 
     switch t in cond {
         case Number: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Number")
-        case Return_Value: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Return_Value, maybe should be unwrapped")
         case Function: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Function")
         case string: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found String")
+        case Return_Value: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Return_Value")
+        case Array_Literal: parser_errorf(if_node.pos ,false, "If condition expression must result in a boolean, found Array_Literal")
         case bool : 
     }
 
@@ -332,6 +339,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case string: return false
                 case bool: return false
                 case Function: return false
+                case Array_Literal: return false
                 case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
@@ -341,7 +349,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case string: return left.(string) == right.(string)
                 case bool: return false
                 case Function: return false
-
+                case Array_Literal: return false
                 case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
@@ -351,7 +359,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case string: return false
                 case bool: return left.(bool) == right.(bool)
                 case Function: return false
-
+                case Array_Literal: return false
                 case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
@@ -362,7 +370,28 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case bool: return false
                 //TODO Maybe need to adjust this in the future, possibly just pointer equality, or recursive struct equality
                 case Function: return false
+                case Array_Literal: return false
+                case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+            }
+        }
 
+        case Array_Literal: {
+            switch t in right {
+                case Number: return false
+                case string: return false
+                case bool: return false
+                //TODO Maybe need to adjust this in the future, possibly just pointer equality, or recursive struct equality
+                case Function: return false
+                //TODO Maybe should be extracted to a function
+                case Array_Literal: {
+                    left := left.(Array_Literal)
+                    right := right.(Array_Literal)
+                    if len(left.elements) != len(right.elements) { return false }
+                    for i in 0 ..< len(left.elements) {
+                        if !eval_same(left.elements[i], right.elements[i])  { return false }
+                    }
+                    return true
+                }
                 case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
@@ -377,16 +406,10 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
 eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     switch t in node.value {
-        case  While: parser_errorf(node.pos ,false, "Expected Binop got While")
-        case  For: parser_errorf(node.pos ,false, "Expected Binop got For")
-        case  Return: parser_errorf(node.pos ,false, "Expected Binop got Return")
-        case  If: parser_errorf(node.pos ,false, "Expected Binop got If")
-        case  Function: parser_errorf(node.pos ,false, "Expected Binop got Function")
-        case  Function_Call: parser_errorf(node.pos ,false, "Expected Binop got Function Call")
-        case  Binding: parser_errorf(node.pos ,false, "Expected Binop, got Binding")
-        case  Identifier: parser_errorf(node.pos ,false, "Expected Binop, got Identifier")
-        case  ^Expression: parser_errorf(node.pos ,false, "Expected Binop, got ^Expression")
-        case  Literal_Node: parser_errorf(node.pos ,false, "Expected Binop, got Literal_Node")
+        case  While, For, Return, Array, If, Function, Function_Call, Binding, Identifier, ^Expression, Literal_Node, Array_Access: { 
+            parser_errorf(node.pos ,false, "Expected Binop got %s", t)
+        }
+
         case  Binop: {
             binop := node.value.(Binop)
             left := eval(env, binop.left)
@@ -467,6 +490,7 @@ eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_T
         case string: result = ident.(string)
         case Function: result = ident.(Function) 
         case bool : result = ident.(bool)
+        case Array_Literal : result = ident.(Array_Literal)
         case Return_Value: parser_errorf(ident.(Return_Value).pos ,false, "found Return, expected Identifier")
         case : parser_errorf(node.pos, false, "Var: %s, Expected NUMBER | STRING | FUNCTION | BOOL found: %v", ident, literal_node.name)
     }
@@ -482,6 +506,7 @@ eval_literal :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
         case Function: result = eval_function(env, node)
         case string: result = literal_node.value.(string)
         case bool: result = literal_node.value.(bool)
+        case Array_Literal: result = eval_array(env, node)
         case Return_Value: parser_errorf(literal_node.value.(Return_Value).pos ,false, "found Return, expected literal")
     }
     return result
@@ -493,6 +518,7 @@ eval_function :: proc(env: ^Environment, node: ^Expression) -> Function {
     result = node.value.(Function)
     return result
 }
+
 
 eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
@@ -520,9 +546,8 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
 
         switch t in var {
             case Function: fn = var.(Function)
-            case Number: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-            case string: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-            case bool: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+            case Number, string, bool, Array_Literal: 
+                parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
             case Return_Value: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
         }
 
@@ -560,27 +585,70 @@ eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
             env.env[name] = result
         }
 
-        case  While: assert(false, "Expected binding, found While")
-        case  For: assert(false, "Expected binding, found For")
-        case  Return: assert(false, "Expected binding, found Return")
-        case  If: assert(false, "Expected binding, found If")
-        case  Binop: assert(false, "Expected binding, found Binop")
-        case  Identifier: assert(false, "Expected binding, found Identifier")
-        case  Function: assert(false, "Expected binding, found Function")
-        case  Function_Call: assert(false, "Expected binding, found Function_Call")
-        case  ^Expression: assert(false, "Expected binding, found Expression")
-        case  Literal_Node: assert(false, "Expected binding, found Literal_Node")
-
+        case  While, For, Return, If, Function, Function_Call, Binop, Identifier, ^Expression, Literal_Node, Array, Array_Access: { 
+            parser_errorf(node.pos ,false, "Expected Binding got %s", t)
+        }
     }
 
     return result
 }
 
+eval_array :: proc(env: ^Environment, node: ^Expression) -> Array_Literal {
+    array_literal := node.value.(Array)  // From parser
+    
+    evaluated_elements: [dynamic]Literal_Value_Type
+    for expr in array_literal.elements {
+        value := eval(env, expr)  // Evaluate each expression
+        append(&evaluated_elements, value)
+    }
+    
+    return Array_Literal{
+        elements = evaluated_elements,  // Store evaluated values
+        pos = array_literal.pos,
+    }
+}
+
+eval_array_access :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
+    array := node.value.(Array_Access)
+    index := eval(env, array.param)
+
+    switch t in index {
+        case Array_Literal, string, bool, Function: 
+            parser_errorf(node.pos, false, "Unexpected KIND: %v expected Number", t)
+        case Return_Value: parser_errorf(node.pos, false, "Unexpected KIND: %v expected Number", t)
+        case Number: 
+    }
+    index_checked := index.(Number)
+
+    array_literal, ok := env_get(env, array.name)
+    if !ok {
+        parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", array.name)
+    }
+
+    //TODO Maybe should be extracted
+    switch t in array_literal {
+        case Number, string, bool, Function: 
+            parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+        case Return_Value: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+        case Array_Literal: 
+    }
+    array_checked := array_literal.(Array_Literal)
+    switch t in index_checked {
+        case i64: {
+            return array_checked.elements[index_checked.(i64)]
+        }
+        case f64: {
+            return array_checked.elements[cast(i64)index_checked.(f64)]
+        }
+    }
+
+    return nil
+}
+
 // Unsure if this should take a block type or [dynamic]^Expression. Maybe after type refactor will be more obvious
 eval_block :: proc(env: ^Environment, exps: [dynamic]^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
-
-    // Execute function body
+// Execute function body
     for stmt in exps { 
         result = eval(env, stmt)  
         switch t in result {
@@ -589,6 +657,7 @@ eval_block :: proc(env: ^Environment, exps: [dynamic]^Expression) -> Literal_Val
             case Number:
             case string:
             case bool:
+            case Array_Literal:
         }
     }
 
@@ -611,7 +680,12 @@ eval :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type{
         case Identifier: result = eval_identifier(env, node)
         case Binding: result = eval_binding(env, node)
         case Function: result = eval_function(env, node)
+        case Array: result = eval_array(env, node)
         case Function_Call: result = eval_function_call(env, node)
+        case Array_Access: {
+            // assert(false, "IMPLEMENTED")
+            result = eval_array_access(env, node)
+        }
         case Binop: result = eval_binop(env, node)
         case If: result = eval_if(env, node)
         case While: result = eval_while(env, node)
@@ -697,6 +771,7 @@ main :: proc() {
                 case Number: fmt.printfln("RES: %#v",to_string(result))
                 case string: fmt.printfln("RES: %#v",to_string(result))
                 case bool: fmt.printfln("RES: %#v",to_string(result))
+                case Array_Literal: fmt.printfln("RES: %#v",to_string(result))
             }
         }
     }

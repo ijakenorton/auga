@@ -55,6 +55,8 @@ kind_to_string :: proc(kind: Kind) -> string {
         case RPAREN: return "RPAREN"
         case LBRACE: return "LBRACE"
         case RBRACE: return "RBRACE"
+        case LBLOCK: return "LBLOCK"
+        case RBLOCK: return "RBLOCK"
         case LBRACKET: return "LBRACKET"
         case RBRACKET: return "RBRACKET"
         case SQUOTE: return "SQUOTE"
@@ -78,8 +80,9 @@ literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
         case string: return lit.(string)
         case Number: return number_to_string(lit.(Number))
         case Function: return function_to_string(lit.(Function), indent)
-        case bool : return boolean_to_string(lit.(bool))
-        case Return_Value : assert(false, "Not implemented")
+        case bool: return boolean_to_string(lit.(bool))
+        case Return_Value: assert(false, "Not implemented")
+        case Array_Literal: assert(false, "Not implemented")
     }
 
     assert(false, "UNREACHABLE")
@@ -244,21 +247,17 @@ expression_to_value_string :: proc(expr: ^Expression, env: ^Environment, indent:
     strings.builder_init(&sb)
     
     switch t in expr.value {
-       case While: { assert(false,"Not implemented") }
-       case For: { assert(false,"Not implemented") }
-       case Return: { assert(false,"Not implemented") }
-       case ^Expression: { assert(false,"Not implemented") }
-       case Binop: { assert(false,"Not implemented") }
-       case Binding: { assert(false,"Not implemented") }
-       case Identifier: { return identifier_to_value_string(expr.value.(Identifier), env)}
-       case Function: { assert(false,"Not implemented") }
-       case Function_Call: { assert(false,"Not implemented") }
-       case Literal_Node: { 
-           return literal_to_string(expr.value.(Literal_Node).value)}
-       case If: { assert(false,"Not implemented") }
+        case While, For, Return, If, Array, Array_Access, ^Expression, Binop, Binding, Function, Function_Call:{ 
+            assert(false,"Not implemented") 
+        }
+        case Identifier: { 
+            return identifier_to_value_string(expr.value.(Identifier), env)
+        }
+        case Literal_Node: { 
+           return literal_to_string(expr.value.(Literal_Node).value)
+        }
     }
-        
-        return strings.to_string(sb)
+    return strings.to_string(sb)
 }
 expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
     if expr == nil do return "nil"
@@ -273,7 +272,12 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
         case  Return: {
             assert(false,"Not implemented") 
         }
-
+        case  Array: {
+            assert(false,"Not implemented") 
+        }
+        case  Array_Access: {
+            assert(false,"Not implemented") 
+        }
         case  While: {
             assert(false,"Not implemented") 
         }

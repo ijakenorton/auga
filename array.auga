@@ -1,0 +1,2 @@
+let lt = [1 3]
+print(lt[1])
