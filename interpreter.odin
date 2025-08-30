@@ -2,6 +2,8 @@ package main
 
 import "core:os"
 import "core:fmt"
+import "core:strings"
+import "core:os/os2"
 
 
 Environment :: struct {
@@ -540,10 +542,23 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
         return true
     } 
     else if name == "shell" {
-        for param in params{
-            param_value := eval(env, param)
-            fmt.printf("SHELL: %s", to_value_string(param_value))
+        if len(params) < 1 {
+            parser_errorf(node.pos, false, "shell() expects at least 1 argument")
         }
+        
+        // First param is the command
+        command_value := eval(env, params[0])
+        command := command_value.(string)
+        
+        // Remaining params are arguments
+        args: [dynamic]string
+        for i in 1..<len(params) {
+            arg_value := eval(env, params[i])
+            append(&args, arg_value.(string))
+        }
+        
+        result_array := eval_shell(command, args[:])
+        return result_array
     } else {
         var, ok := env_get(env, name)
         if !ok {
@@ -579,6 +594,44 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     }
 
     return result
+}
+
+eval_shell :: proc(command: string, args: []string) -> Array_Literal {
+    // Build the full command
+    full_command := command
+    if len(args) > 0 {
+        full_command = fmt.aprintf("%s %s", command, strings.join(args, " "))
+    }
+    
+    // Set up process description
+    desc := os2.Process_Desc{
+        command = []string{"sh", "-c", full_command},
+        // stdout and stderr left as nil for capture
+    }
+    
+    // Execute and capture output
+    state, stdout_bytes, stderr_bytes, err := os2.process_exec(desc, context.allocator)
+    defer delete(stdout_bytes)
+    defer delete(stderr_bytes)
+    
+    // Convert bytes to strings
+     stdout_str := strings.clone_from_bytes(stdout_bytes)
+     stderr_str := strings.clone_from_bytes(stderr_bytes)
+    // stdout_str := string(stdout_bytes)
+    // stderr_str := string(stderr_bytes)
+    exit_code := state.exit_code
+    
+    // Create result array
+    elements: [dynamic]Literal_Value_Type
+    append(&elements, stdout_str)                    // stdout
+    append(&elements, stderr_str)                    // stderr  
+    append(&elements, Number(i64(exit_code)))        // return code
+    //fmt.printf("\e[0;32m%v\e[0m\n", exit_code)
+    
+    return Array_Literal{
+        elements = elements,
+        pos = Position{},
+    }
 }
 
 eval_binding :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {

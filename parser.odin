@@ -781,7 +781,9 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
         }
 
         case RPAREN: parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
+        case EQUALS: parser_errorf(pos, false, "Syntax error, found %s, assignment expressions require `let`\ne.g let foo = \"bar\"", to_string(curr.kind))
         case: 
+            //TODO: catch issues in error reporting
             parser_errorf(pos, false, "unknown prefix expression %s", to_string(curr.kind))
     }
     //UNREACHABLE

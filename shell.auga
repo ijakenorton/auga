@@ -1,3 +1,15 @@
-let output = shell("cat myfile" "args...")
-//output = [stdout stderr return_code]
+let output = shell("echo hello from shell ")
+let stdout = output[0]
+let stderr = output[1] 
+let return_code = output[2]
+print(stdout)
+print(stderr)
+print("exit code: " return_code)
 
+let output = shell("gcc")
+let stdout = output[0]
+let stderr = output[1] 
+let return_code = output[2]
+print(stdout)
+print(stderr)
+print("exit code: " return_code)
