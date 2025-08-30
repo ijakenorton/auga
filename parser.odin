@@ -6,6 +6,7 @@ import "core:strings"
 import "core:mem"
 import "core:strconv"
 
+
 Precedence :: enum {
     LOWEST = 1,
     EQUALS = 2,
@@ -298,6 +299,26 @@ parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
     return params
 }
 
+parse_shell_call :: proc(p: ^Parser) -> ^Expression {
+    curr := curr_tok(p)
+    name := curr.literal
+    pos := curr.pos
+
+    //Unsure if reuse of this makes sense, wasteful on memory to use a dynamic array for a string
+    param: [dynamic]^Expression
+
+    _ = next_and_expect(p, .LPAREN)
+    curr = next_and_expect(p, .STRING)
+    append(&param, parse_string(p))
+
+    fn_call := Function_Call {
+        params = param, 
+        name =  "shell",
+        pos = curr_tok(p).pos
+    }
+
+    return create_expression(fn_call, pos)  
+}
 //Fix missing function call
 parse_fn_call :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
@@ -689,7 +710,7 @@ has_infix_parser :: proc(kind: Kind) -> bool{
     using Kind
      switch kind {
         case .PLUS, .MINUS, .MULTIPLY, .DIVIDE, .MOD, .SAME, .LT, .GT: return true
-        case LET, FN, RETURN, IF, TRUE, FALSE, PRINT, IDENT, STRING, 
+        case LET, FN, RETURN, IF, TRUE, FALSE, PRINT, SHELL, IDENT, STRING, 
              DOT, EQUALS, INT64, FLOAT64, BSLASH, LPAREN, RPAREN, 
              LBRACKET, RBRACKET, LBRACE, RBRACE, SQUOTE, QUESTION_MARK, 
              BANG, COMMA, NEWLINE, EOF, ELSE, FOR, WHILE, DOTDOT, LBLOCK, RBLOCK: return false
@@ -752,6 +773,11 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
         //TODO refactor to more generic intrinsic handling at somepoint
         case PRINT: {
             return parse_fn_call(p)
+        }
+
+        case SHELL: {
+            return parse_fn_call(p)
+            //return parse_shell_call(p)
         }
 
         case RPAREN: parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))

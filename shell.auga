@@ -1,2 +1,3 @@
-output = shell("cat myfile")
-stdout stderr return code]
+let output = shell("cat myfile" "args...")
+//output = [stdout stderr return_code]
+

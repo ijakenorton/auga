@@ -3,6 +3,7 @@ package main
 import "core:os"
 import "core:fmt"
 
+
 Environment :: struct {
     env: map[string]Literal_Value_Type,
     parent: ^Environment,
@@ -530,7 +531,6 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     if name == "print" {
         // parser_errorf(node.pos, false, "Var: %s", name)
         for param in params{
-
             param_value := eval(env, param)
             fmt.printf("%s", to_value_string(param_value))
         }
@@ -538,6 +538,12 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
         fmt.println()
 
         return true
+    } 
+    else if name == "shell" {
+        for param in params{
+            param_value := eval(env, param)
+            fmt.printf("SHELL: %s", to_value_string(param_value))
+        }
     } else {
         var, ok := env_get(env, name)
         if !ok {

@@ -1,5 +1,8 @@
-auga:
+auga: *.odin
 	odin build .
+
+shell: auga 
+	./auga shell.auga
 
 array: auga 
 	./auga array.auga

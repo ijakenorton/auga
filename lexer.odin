@@ -35,6 +35,7 @@ Kind :: enum {
     FALSE,
     MOD,
     PRINT,
+    SHELL,
     IDENT,
     STRING,
     DOT,
@@ -210,6 +211,7 @@ keyword_or_identifier :: proc(literal: string) -> Kind {
         case "else": return .ELSE
         case "true": return .TRUE
         case "false": return .FALSE
+        case "shell": return .SHELL
         case: return .IDENT
     }
 }

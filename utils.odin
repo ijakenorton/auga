@@ -38,6 +38,7 @@ kind_to_string :: proc(kind: Kind) -> string {
         case TRUE: return "TRUE"
         case FALSE: return "FALSE"
         case PRINT: return "PRINT"
+        case SHELL: return "SHELL"
         case IDENT: return "IDENT"
         case DOT: return "DOT"
         case DOTDOT: return "DOTDOT"
