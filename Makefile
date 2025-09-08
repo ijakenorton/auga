@@ -6,6 +6,9 @@ shell: auga
 
 array: auga 
 	./auga array.auga
+	
+to_string: auga to_string.auga
+	./auga to_string.auga
 
 for: auga 
 	./auga for.auga

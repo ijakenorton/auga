@@ -3,8 +3,10 @@ package main
 import "core:fmt"
 import "core:strings"
 import "base:runtime"
-
 import "core:log"
+
+
+INDENT :: "  "
 
 Logger_Level :: enum {
 	Debug   = 0,
@@ -21,6 +23,20 @@ perror :: proc(pos: Position, message: string) -> string {
 
 shift :: proc(args: []string) -> ([]string, string) {
     return args[1:], args[0]
+}
+
+sb_pad_left :: proc(sb: ^strings.Builder, indent: int) {
+    for i in 0..<indent {
+        fmt.sbprint(sb, INDENT)
+    }
+}
+
+
+sb_body_to_string :: proc(sb: ^strings.Builder, body: [dynamic]^Expression, indent: int = 0) {
+    for stmt, i in body {
+        fmt.sbprintf(sb, "%s", expression_to_string(stmt, indent))
+        fmt.sbprintf(sb, "\n")
+    }
 }
 
 kind_to_string :: proc(kind: Kind) -> string {
@@ -75,94 +91,119 @@ kind_to_string :: proc(kind: Kind) -> string {
 
 }
 
+binop_kind_to_string :: proc(kind: Binop_Kind) -> string {
+    using Binop_Kind
+    switch kind {
+        case PLUS: return "PLUS" 
+        case MINUS: return "MINUS" 
+        case MULTIPLY: return "MULTIPLY" 
+        case DIVIDE: return "DIVIDE" 
+        case MOD: return "MOD" 
+        case SAME: return "SAME" 
+        case LT: return "LT" 
+        case GT: return "GT" 
+
+        case : assert(false, "UNREACHABLE")
+    }
+    return "INVALID"
+}
+
+
 literal_to_string :: proc(lit: Literal_Value_Type, indent: int = 0) -> string {
     if lit == nil do return "nil"
     switch t in lit {
-        case string: return lit.(string)
-        case Number: return number_to_string(lit.(Number))
+        case string: return string_to_string(lit.(string), indent)
+        case Number: return number_to_string(lit.(Number), indent)
         case Function: return function_to_string(lit.(Function), indent)
-        case bool: return boolean_to_string(lit.(bool))
+        case bool: return boolean_to_string(lit.(bool), indent)
         case Return_Value: assert(false, "Not implemented")
-        case Array_Literal: assert(false, "Not implemented")
+        case Array_Literal: return array_literal_to_string(lit.(Array_Literal), indent)
     }
 
     assert(false, "UNREACHABLE")
     return ""
+
+}
+
+literal_node_to_string :: proc(literal_node: Literal_Node, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "Literal_Node(\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb, "value: (\n")
+
+    fmt.sbprintf(&sb, "%s\n", literal_to_string(literal_node.value, indent+2))
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb, ")\n")
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")")
+
+    return strings.to_string(sb)
+}
+
+return_to_string :: proc(returnn: Return, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "Return(\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb, "value: \n")
+    fmt.sbprintf(&sb,"%s\n", expression_to_string(returnn.value, indent+2))
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")")
+
+    return strings.to_string(sb)
 }
 
 if_to_string :: proc(iff: If, indent: int = 0) -> string {
     sb: strings.Builder
     strings.builder_init(&sb)
 
+    sb_pad_left(&sb, indent)
     fmt.sbprintf(&sb, "If(\n")
-        
-    for i in 0..<indent+1 {
-        strings.write_string(&sb, "  ")
-    }
-    fmt.sbprintf(&sb, "cond: (")
-    fmt.sbprintf(&sb, "\n")
-    fmt.sbprintf(&sb, "%s", expression_to_string(iff.cond, indent+2))
-    fmt.sbprintf(&sb, "\n")
-    for i in 0..<indent+1 {
-        strings.write_string(&sb, "  ")
-    }
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "cond: (\n")
+    fmt.sbprintf(&sb, "%s\n", expression_to_string(iff.cond, indent+2))
+    sb_pad_left(&sb, indent + 1)
     fmt.sbprintf(&sb, "),\n")
     
     // Print body/value
-    for i in 0..<indent+1 {
-        strings.write_string(&sb, "  ")
-    }
+    sb_pad_left(&sb, indent + 1)
     fmt.sbprintf(&sb, "ifbody: [")
+
     if len(iff.body) > 0 {
         fmt.sbprintf(&sb, "\n")
-        for stmt, i in iff.body {
-            for j in 0..<indent+2 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+1))
-            if i < len(iff.body) - 1 {
-                fmt.sbprintf(&sb, ",")
-            }
-            fmt.sbprintf(&sb, "\n")
-        }
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
+        sb_body_to_string(&sb, iff.body, indent + 2)
     }
+    sb_pad_left(&sb, indent + 1)
     fmt.sbprintf(&sb, "]\n")
 
-    for i in 0..<indent+1 {
-        strings.write_string(&sb, "  ")
-    }
+    //Print elsebody
+    sb_pad_left(&sb, indent + 1)
     fmt.sbprintf(&sb, "elsebody: [")
     if len(iff.elze) > 0 {
         fmt.sbprintf(&sb, "\n")
-        for stmt, i in iff.elze {
-            for j in 0..<indent+2 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+1))
-            if i < len(iff.elze) - 1 {
-                fmt.sbprintf(&sb, ",")
-            }
-            fmt.sbprintf(&sb, "\n")
-        }
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
+        sb_body_to_string(&sb, iff.elze, indent + 2)
     }
+    sb_pad_left(&sb, indent + 1)
     fmt.sbprintf(&sb, "]\n")
-    
-    for i in 0..<indent {
-        strings.write_string(&sb, "  ")
-    }
-    strings.write_string(&sb, ")")
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")")
 
     return strings.to_string(sb)
 }
 
 function_to_value_string :: proc(function: Function, indent: int = 0) -> string {
-
     sb: strings.Builder
     strings.builder_init(&sb)
 
@@ -176,68 +217,68 @@ function_to_value_string :: proc(function: Function, indent: int = 0) -> string 
             }
         }
     }
-    strings.write_string(&sb, ")")
+    fmt.sbprint(&sb, ")")
 
     return strings.to_string(sb)
 }
-function_to_string :: proc(function: Function, indent: int = 0) -> string {
 
+function_to_string :: proc(function: Function, indent: int = 0) -> string {
     sb: strings.Builder
     strings.builder_init(&sb)
 
-    fmt.sbprintf(&sb, "Function(\n")
-    
-    // Print arguments
-    for i in 0..<indent+1 {
-        strings.write_string(&sb, "  ")
-    }
-    fmt.sbprintf(&sb, "args: [")
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "Function(\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb, "args(")
+
     if len(function.args) > 0 {
         fmt.sbprintf(&sb, "\n")
-        for arg, i in function.args {
-            for j in 0..<indent+2 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "%s", expression_to_string(arg, indent+2))
-            if i < len(function.args) - 1 {
-                fmt.sbprintf(&sb, ",")
-            }
-            fmt.sbprintf(&sb, "\n")
-        }
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
+        sb_body_to_string(&sb, function.args, indent + 2)
     }
-    fmt.sbprintf(&sb, "],\n")
-    
-    // Print body/value
-    for i in 0..<indent+1 {
-        strings.write_string(&sb, "  ")
-    }
-    fmt.sbprintf(&sb, "body: [")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb, "],\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb, "body: [")
+
     if len(function.value) > 0 {
         fmt.sbprintf(&sb, "\n")
-        for stmt, i in function.value {
-            for j in 0..<indent+2 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "%s", expression_to_string(stmt, indent+2))
-            if i < len(function.value) - 1 {
-                fmt.sbprintf(&sb, ",")
-            }
-            fmt.sbprintf(&sb, "\n")
-        }
-        for i in 0..<indent+1 {
-            strings.write_string(&sb, "  ")
-        }
+        sb_body_to_string(&sb, function.value, indent + 2)
+    }
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "]\n")
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprintf(&sb, ")")
+
+    return strings.to_string(sb)
+}
+
+function_call_to_string :: proc(fun_call: Function_Call, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprintf(&sb, "Function_Call(\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "name: %s\n", fun_call.name)
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "params: [")
+    if len(fun_call.params) > 0 {
+        fmt.sbprintf(&sb, "\n")
+        sb_body_to_string(&sb, fun_call.params, indent + 2)
+        sb_pad_left(&sb, indent + 1)
     }
     fmt.sbprintf(&sb, "]\n")
-    
-    for i in 0..<indent {
-        strings.write_string(&sb, "  ")
-    }
-    strings.write_string(&sb, ")")
 
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")")
+    
     return strings.to_string(sb)
 }
 
@@ -248,18 +289,19 @@ expression_to_value_string :: proc(expr: ^Expression, env: ^Environment, indent:
     strings.builder_init(&sb)
     
     switch t in expr.value {
-        case While, For, Return, If, Array, Array_Access, ^Expression, Binop, Binding, Function, Function_Call:{ 
+        case While, For, Return, If, Array, Array_Access, ^Expression, Binop, Binding, Function, Function_Call: { 
             assert(false,"Not implemented") 
         }
         case Identifier: { 
             return identifier_to_value_string(expr.value.(Identifier), env)
         }
         case Literal_Node: { 
-           return literal_to_string(expr.value.(Literal_Node).value)
+           return literal_to_string(expr.value.(Literal_Node).value, indent)
         }
     }
     return strings.to_string(sb)
 }
+
 expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
     if expr == nil do return "nil"
     
@@ -267,143 +309,160 @@ expression_to_string :: proc(expr: ^Expression, indent: int = 0) -> string {
     strings.builder_init(&sb)
     
     switch t in expr.value {
-        //Unsure if this is a problem
-        case ^Expression: 
-            fmt.sbprintf(&sb, "Expression(%v)", expression_to_string(expr.value.(^Expression), indent+1))
-        case  Return: {
-            assert(false,"Not implemented") 
-        }
-        case  Array: {
-            assert(false,"Not implemented") 
-        }
-        case  Array_Access: {
-            assert(false,"Not implemented") 
-        }
-        case  While: {
-            assert(false,"Not implemented") 
-        }
-
-        case  For: {
-            assert(false,"Not implemented") 
-        }
-        case  If: 
-            fmt.sbprintf(&sb, "%s", if_to_string(expr.value.(If), indent+1))
-        case Literal_Node:
-            fmt.sbprintf(&sb, "LITERAL(%v)", expr.value.(Literal_Node))
-            
-        case Identifier:
-            fmt.sbprintf(&sb, "Identifier(%v)", expr.value.(Identifier).name)
-        case Binding:
-            binding := expr.value.(Binding)
-            fmt.sbprintf(&sb, "Let(\n")
-            for i in 0..<indent+3 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "name: %s,\n", binding.name)
-            for i in 0..<indent+3 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "value: %s\n", expression_to_string(binding.value, indent+1))
-            for i in 0..<indent + 2 {
-                strings.write_string(&sb, "  ")
-            }
-            strings.write_string(&sb, ")")
-            
-        case Binop:
-            binop := expr.value.(Binop)
-            fmt.sbprintf(&sb, "Infix(\n")
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "op: %v,\n", binop.kind)
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "left: %s,\n", expression_to_string(binop.left, indent))
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "right: %s\n", expression_to_string(binop.right, indent))
-            for i in 0..<indent {
-                strings.write_string(&sb, "  ")
-            }
-            strings.write_string(&sb, ")")
-
-        case Function_Call:
-            fun_call := expr.value.(Function_Call)
-            fmt.sbprintf(&sb, "Function_Call(\n")
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-
-            fmt.sbprintf(&sb, "name: %s,\n", fun_call.name)
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-
-            // Print params
-            for i in 0..<indent+1 {
-                strings.write_string(&sb, "  ")
-            }
-            fmt.sbprintf(&sb, "params: [")
-            if len(fun_call.params) > 0 {
-                fmt.sbprintf(&sb, "\n")
-
-                for param, i in fun_call.params {
-                    for j in 0..<indent+2 {
-                        strings.write_string(&sb, "  ")
-                    }
-                    fmt.sbprintf(&sb, "%s", expression_to_string(param, indent+2))
-                    if i < len(fun_call.params) - 1 {
-                        fmt.sbprintf(&sb, ",")
-                    }
-                    fmt.sbprintf(&sb, "\n")
-                }
-                for i in 0..<indent+1 {
-                    strings.write_string(&sb, "  ")
-                }
-            }
-
-            fmt.sbprintf(&sb, "],\n")
-            strings.write_string(&sb, ")")
-            
-            case Function: {
-                function := expr.value.(Function)
-                fmt.sbprintf(&sb, "%s", function_to_string(function, indent+2))
-            }
-        }
+        case ^Expression: fmt.sbprintf(&sb, "Expression(%v)", expression_to_string(expr.value.(^Expression), indent))
+        case Binding: fmt.sbprintf(&sb, "%s", binding_to_string(expr.value.(Binding), indent))
+        case Literal_Node: fmt.sbprintf(&sb, "%s", literal_node_to_string(expr.value.(Literal_Node), indent))
+        case Identifier: fmt.sbprintf(&sb, "%s", identifier_to_string(expr.value.(Identifier), indent))
+        case Binop: fmt.sbprintf(&sb, "%s", binop_to_string(expr.value.(Binop), indent))
+        case Array: fmt.sbprintf(&sb, "%s", array_to_string(expr.value.(Array), indent)) 
+        case Array_Access: assert(false,"Not implemented") 
+        case Function_Call: fmt.sbprintf(&sb, "%s", function_call_to_string(expr.value.(Function_Call), indent))
+        case Function: fmt.sbprintf(&sb, "%s", function_to_string(expr.value.(Function), indent))
+        case Return: fmt.sbprintf(&sb, "%s", return_to_string(expr.value.(Return), indent))
+        case While: assert(false,"Not implemented") 
+        case For: assert(false,"Not implemented") 
+        case If: fmt.sbprintf(&sb, "%s", if_to_string(expr.value.(If), indent))
         
-        return strings.to_string(sb)
+    }
+        
+    return strings.to_string(sb)
 }
 
+identifier_to_string :: proc (identifier: Identifier, indent: int  = 0) -> string{
+    sb: strings.Builder
+    strings.builder_init(&sb)
 
-position_to_string :: proc(pos: Position) -> string { 
-    out: strings.Builder
-    strings.builder_init(&out)
+    sb_pad_left(&sb, indent)
+    fmt.sbprintf(&sb, "Identifier(%s)", identifier.name)
 
-    fmt.sbprintf(&out ,"%s(%d:%d)", pos.file_path, pos.row, pos.col) 
-    return strings.to_string(out)
+    return strings.to_string(sb)
 }
 
-boolean_to_string :: proc(flag: bool) -> string {
-    switch flag {
-        case true: return "true"
-        case false: return "false"
+binding_to_string :: proc(binding: Binding, indent: int  = 0) -> string{
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "Let(\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "name: %s,\n", binding.name)
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprint(&sb,"value: \n")
+    fmt.sbprintf(&sb,"%s\n", expression_to_string(binding.value, indent+2))
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")")
+
+    return strings.to_string(sb)
+}
+
+binop_to_string :: proc(binop: Binop, indent: int  = 0) -> string{
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprintf(&sb, "Binop(\n")
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "op: %s,\n", to_string(binop.kind))
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "left: \n")
+    fmt.sbprintf(&sb,"%s\n", expression_to_string(binop.left, indent+2))
+
+    sb_pad_left(&sb, indent + 1)
+    fmt.sbprintf(&sb, "right: \n")
+    fmt.sbprintf(&sb,"%s\n", expression_to_string(binop.right, indent+2))
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")")
+
+    return strings.to_string(sb)
+}
+
+position_to_string :: proc(pos: Position, indent: int = 0) -> string { 
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprintf(&sb ,"%s(%d:%d)", pos.file_path, pos.row, pos.col) 
+    return strings.to_string(sb)
+}
+
+array_literal_to_string :: proc(array: Array_Literal, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "[")
+    for ele, i in array.elements {
+        fmt.sbprintf(&sb, "%s",literal_to_string(ele))
+
+        if i < len(array.elements) - 1 {
+            fmt.sbprintf(&sb, " ")
+        }
     }
 
-    assert(false, "UNREACHABLE")
-    return ""
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "]")
+
+    return strings.to_string(sb)
+}
+array_to_string :: proc(array: Array, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, "Array(")
+
+    if len(array.elements) > 0 {
+        fmt.sbprint(&sb, "\n")
+        sb_body_to_string(&sb, array.elements, indent + 1)
+        fmt.sbprint(&sb, "\n")
+    }
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, ")\n")
+
+    return strings.to_string(sb)
 }
 
-number_to_string :: proc(num: Number) -> string { 
-    out: strings.Builder
-    strings.builder_init(&out)
+boolean_to_string :: proc(flag: bool, indent: int = 0) -> string {
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    switch flag {
+        case true: fmt.sbprint(&sb, "true")
+        case false: fmt.sbprint(&sb, "false")
+    }
+
+    return strings.to_string(sb)
+}
+
+string_to_string :: proc(str: string, indent: int = 0) -> string { 
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
+    fmt.sbprint(&sb, str)
+
+    return strings.to_string(sb)
+}
+
+number_to_string :: proc(num: Number, indent: int = 0) -> string { 
+    sb: strings.Builder
+    strings.builder_init(&sb)
+
+    sb_pad_left(&sb, indent)
 
     switch v in num {
-        case f64: fmt.sbprintf(&out ,"%f", num)
-        case i64: fmt.sbprintf(&out ,"%d", num)
+        case f64: fmt.sbprintf(&sb ,"%f", num)
+        case i64: fmt.sbprintf(&sb ,"%d", num)
     }
-    return strings.to_string(out)
+    return strings.to_string(sb)
 }
 
 identifier_to_value_string :: proc(identifier: Identifier, env: ^Environment, indent: int = 0) -> string { 
@@ -436,10 +495,11 @@ token_to_string :: proc(token: Token) -> string {
     return strings.to_string(out)
 }
 
-to_string :: proc{kind_to_string, token_to_string, position_to_string, 
-    number_to_string, expression_to_string, literal_to_string, function_to_string, if_to_string}
+to_string :: proc{kind_to_string, binop_kind_to_string, token_to_string, position_to_string, 
+    number_to_string, expression_to_string, literal_to_string, function_to_string, if_to_string, 
+    array_to_string, return_to_string}
 
-to_value_string :: proc{expression_to_value_string, function_to_value_string, identifier_to_value_string, literal_to_string}
+to_value_string :: proc{expression_to_value_string, function_to_value_string, identifier_to_value_string, literal_to_string, array_literal_to_string}
 
 print_token :: proc(token: Token) {
     fmt.printf("%s\n", to_string(token))
@@ -470,3 +530,4 @@ parser_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..a
 		internal(pos, loc, fmt_str, ..args)
 	}
 }
+
