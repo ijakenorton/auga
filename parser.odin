@@ -74,7 +74,7 @@ Array_Literal :: struct {
 }
 
 Array_Access :: struct {
-    param: ^Expression,
+    index: ^Expression,
     name: string,
     pos: Position,
 }
@@ -348,11 +348,11 @@ parse_array_access :: proc(p: ^Parser) -> ^Expression {
         parser_errorf(curr_tok(p).pos, false, "Expected: argument or ], got %s", to_string(curr_tok(p).kind))
     }
 
-    param := parse_expression(p)
+    index := parse_expression(p)
 
     array := Array_Access {
         name = name,
-        param = param,
+        index = index,
         pos = pos,
     }
 

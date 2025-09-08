@@ -68,8 +68,8 @@ literal_to_number :: proc(node: ^Expression) -> Number {
     literal_node := node.value.(Literal_Node)
     switch t in literal_node.value{
         case Number: result = literal_node.value.(Number)
-        case Function: assert(false, "NOT IMPLEMENTED")
-        case Return_Value: assert(false, "Must be a LITERAL NUMBER not return value, perhaps this should try to unwrap the Return_Value?")
+        case Function: assert(false, "Must be a LITERAL NUMBER not Function")
+        case Return_Value: assert(false, "Must be a LITERAL NUMBER not Return_Value")
         case string: assert(false, "Must be a LITERAL NUMBER not string")
         case bool : assert(false, "Must be a LITERAL NUMBER not bool")
         case Array_Literal : assert(false, "Must be a LITERAL NUMBER not Array_Literal")
@@ -669,7 +669,7 @@ eval_array :: proc(env: ^Environment, node: ^Expression) -> Array_Literal {
 
 eval_array_access :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     array := node.value.(Array_Access)
-    index := eval(env, array.param)
+    index := eval(env, array.index)
 
     switch t in index {
         case Array_Literal, string, bool, Function: 
