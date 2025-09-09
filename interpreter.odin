@@ -826,11 +826,11 @@ main :: proc() {
         if debug {
             switch t in result {
                 case Function: fmt.printfln("RES: %s",function_to_value_string(result.(Function)))
-                case Return_Value: fmt.printfln("RES: %#v",to_string(result))
-                case Number: fmt.printfln("RES: %#v",to_string(result))
-                case string: fmt.printfln("RES: %#v",to_string(result))
-                case bool: fmt.printfln("RES: %#v",to_string(result))
-                case Array_Literal: fmt.printfln("RES: %#v",to_string(result))
+                case Return_Value: fmt.printfln("RES: %s",to_string(result.(Return_Value)))
+                case Number: fmt.printfln("RES: %s",to_string(result.(Number)))
+                case string: fmt.printfln("RES: %s",to_string(result.(string)))
+                case bool: fmt.printfln("RES: %s",to_string(result.(bool)))
+                case Array_Literal: fmt.printfln("RES: %s",to_string(result.(Array_Literal)))
             }
         }
     }

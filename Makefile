@@ -8,7 +8,7 @@ array: auga
 	./auga array.auga
 	
 to_string: auga to_string.auga
-	./auga to_string.auga
+	./auga to_string.auga debug 
 
 for: auga 
 	./auga for.auga

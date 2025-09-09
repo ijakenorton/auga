@@ -1,0 +1,53 @@
+print("*************************STRING*************************")
+print("hello world")
+print("hello, world")
+
+print("*************************NUMBER*************************")
+print(1)
+print(69.420)
+let a = 10
+let b = 20
+let val = if a > b { return a } else { return b }
+print(val)
+let add = fn a b { 
+    if a > b {
+        return a + b
+    } else {
+        return a + b
+    }
+
+    let foo = fn {
+       print("no args") 
+    }
+
+    let bar = fn a b c d {
+       print(a b c d) 
+    }
+    bar(10 "str: 20" 33.3)
+
+    let i = 0
+    while a > b {
+       let i = i + 1 
+    }
+
+    for let i = 0 .. a < b .. i + 1 {
+       print("Loop i: " i)  
+    }
+    return 0 
+}
+print(add)
+
+let arr = [0 1 2 3 4 5]
+print(arr)
+print([10 20 30])
+////////////////////////////////////////////////////// NOT IMPLEMENTED
+
+//print("hello\n, world")
+// print("*************************ARRAY*************************")
+// print(arr)
+//
+// let loop = fn i func param{
+//     for let iter = 0 .. iter < i .. i++ {
+//         func(params)
+//     }
+// }
