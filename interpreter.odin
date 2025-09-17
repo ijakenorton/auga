@@ -417,7 +417,6 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
             binop := node.value.(Binop)
             left := eval(env, binop.left)
             right := eval(env, binop.right)
-            //TODO possibly move this around as they are not needed in SAME binop
             switch binop.kind {
                 case .SAME : {
                     result = eval_same(left, right)
@@ -667,14 +666,41 @@ eval_array :: proc(env: ^Environment, node: ^Expression) -> Array_Literal {
     }
 }
 
+eval_array_index :: proc(array_literal: Literal_Value_Type, index: Number) -> Literal_Value_Type {
+    switch t in array_literal {
+        case Number, string, bool, Function, Return_Value: 
+            parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
+        case Array_Literal: 
+    }
+    array_checked := array_literal.(Array_Literal)
+    switch t in index {
+        case i64: {
+            return array_checked.elements[index.(i64)]
+        }
+        case f64: {
+            return array_checked.elements[cast(i64)index.(f64)]
+        }
+    }
+    return nil
+}
+
+to_literal_type :: proc(literal: Literal_Value_Type, type: Literal_Value_Type) -> Literal_Value_Type{
+
+    switch t in literal {
+        case Array_Literal, string, bool, Function, Return_Value: 
+            // parser_errorf(node.pos, false, "Unexpected KIND: %v expected Number", t)
+        case Number: 
+    }
+    return literal
+}
+
 eval_array_access :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     array := node.value.(Array_Access)
     index := eval(env, array.index)
 
     switch t in index {
-        case Array_Literal, string, bool, Function: 
+        case Array_Literal, string, bool, Function, Return_Value: 
             parser_errorf(node.pos, false, "Unexpected KIND: %v expected Number", t)
-        case Return_Value: parser_errorf(node.pos, false, "Unexpected KIND: %v expected Number", t)
         case Number: 
     }
     index_checked := index.(Number)
@@ -684,24 +710,7 @@ eval_array_access :: proc(env: ^Environment, node: ^Expression) -> Literal_Value
         parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", array.name)
     }
 
-    //TODO Maybe should be extracted
-    switch t in array_literal {
-        case Number, string, bool, Function: 
-            parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-        case Return_Value: parser_errorf(node.pos, false, "Unexpected KIND: %v expected FUNCTION_CALL", t)
-        case Array_Literal: 
-    }
-    array_checked := array_literal.(Array_Literal)
-    switch t in index_checked {
-        case i64: {
-            return array_checked.elements[index_checked.(i64)]
-        }
-        case f64: {
-            return array_checked.elements[cast(i64)index_checked.(f64)]
-        }
-    }
-
-    return nil
+    return eval_array_index(array_literal, index_checked)
 }
 
 // Unsure if this should take a block type or [dynamic]^Expression. Maybe after type refactor will be more obvious
