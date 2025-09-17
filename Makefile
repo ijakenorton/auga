@@ -1,24 +1,21 @@
 auga: *.odin
 	odin build .
 
-shell: auga 
+shell: shell.auga auga 
 	./auga shell.auga
 
-array: auga 
+array: array.auga auga 
 	./auga array.auga
 	
-to_string: auga to_string.auga
+to_string: to_string.auga auga 
 	./auga to_string.auga debug 
 
-for: auga 
+for: for.auga auga 
 	./auga for.auga
 
-lt: auga 
-	./auga lt.auga
+ltgt: ltgt.auga auga 
+	./auga ltgt.auga
 
-run_all: auga
-	./auga even.auga &&\
-	./auga for.auga &&\
-	./auga return.auga &&\
-	./auga scope.auga &&\
-	./auga test.auga
+all: shell array to_string for ltgt
+
+.PHONY: shell array to_string for ltgt

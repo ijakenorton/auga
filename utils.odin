@@ -647,6 +647,29 @@ print_token :: proc(token: Token) {
 
 print :: proc{print_token}
 
+//TODO Maybe add this as a error with a level/prelude e.g. "Syntax error:", "Runtime Error"...
+@(disabled=ODIN_DISABLE_ASSERT)
+errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
+	if !condition {
+		// NOTE(dragos): We are using the same trick as in builtin.assert
+		// to improve performance to make the CPU not
+		// execute speculatively, making it about an order of
+		// magnitude faster
+		@(cold)
+		internal :: proc(pos: Position ,loc: runtime.Source_Code_Location, fmt_str: string, args: ..any) {
+			p := context.assertion_failure_proc
+			if p == nil {
+				p = runtime.default_assertion_failure_proc
+			}
+
+            fmt.printf("\n%s Error: \n", to_string(pos))
+			message := fmt.tprintf(fmt_str, ..args)
+			log.log(.Fatal, message, location = loc)
+			p("runtime assertion", message, loc)
+		}
+		internal(pos, loc, fmt_str, ..args)
+	}
+}
 // NOTE adapted/yoinked from odin source
 @(disabled=ODIN_DISABLE_ASSERT)
 parser_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
