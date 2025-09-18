@@ -6,6 +6,8 @@ import "core:strings"
 import "core:mem"
 import "core:strconv"
 
+DEBUG := false
+
 
 Precedence :: enum {
     LOWEST = 1,
@@ -155,13 +157,9 @@ next_tok :: proc(p: ^Parser) -> bool {
         return false
     }
 
-    // fmt.printfln("NEXT_TOK: moving from curr=%d to curr=%d", p.curr, p.next)
-    // fmt.printfln("NEXT_TOK: was on %#v", curr_tok(p))
-    
     p.curr = p.next
     p.next += 1
     
-    // fmt.printfln("CURR: now on %#v", curr_tok(p))
     return true
 }
 
@@ -193,10 +191,10 @@ token_precedence :: proc(p: ^Parser, loc := #caller_location) -> Precedence {
             //Hack for print at the moment
         case LPAREN, PRINT: 
             return .CALL
-        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN, WHILE, FOR, DOTDOT, RBLOCK:
+        case LET, EOF, INT64, FLOAT64, IDENT, STRING, LBRACE, RBRACE, RPAREN, IF, ELSE, RETURN, WHILE, FOR, DOTDOT, RBLOCK, SHELL:
             return .LOWEST
         case:
-            parser_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
+            internal_errorf(curr_tok(p).pos, false, "Unexpected KIND: %s\n%s Error: Calling function\n", to_string(curr_tok(p).kind), loc)
             //UNREACHABLE
             assert(false, "UNREACHABLE")
             return .LOWEST
@@ -215,12 +213,20 @@ next_and_expect :: proc(p: ^Parser, kind: Kind, loc := #caller_location) -> Toke
     curr := curr_tok(p)
 
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Expected: %s, got %s, \n%s Error: From function below\n", to_string(kind), to_string(curr_tok(p).kind), loc)
+        if DEBUG {
+            internal_errorf(curr.pos, false, "Expected: %s, got %s, \n%s Error: From function below\n", to_string(kind), to_string(curr_tok(p).kind), loc)
+        } else {
+            syntax_errorf(curr.pos, false, "Expected: %s, got %s", to_string(kind), to_string(curr_tok(p).kind))
+        }
     }
 
     curr = curr_tok(p)
     if !expect(p, kind) {
-        parser_errorf(curr.pos, false, "Expected: %s, got %s, \n%s Error: From function below\n", to_string(kind), to_string(curr_tok(p).kind), loc)
+        if DEBUG {
+            internal_errorf(curr.pos, false, "Expected: %s, got %s, \n%s Error: From function below\n", to_string(kind), to_string(curr_tok(p).kind), loc)
+        } else {
+            syntax_errorf(curr.pos, false, "Expected: %s, got %s", to_string(kind), to_string(curr_tok(p).kind))
+        }
     }
 
     return curr_tok(p)
@@ -274,13 +280,14 @@ parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
     params: [dynamic]^Expression
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
+        syntax_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
     }
 
     count := 0
+    max_depth := 10000
     for !expect(p, .RPAREN) {
-        if count > 1000 {
-            parser_errorf(curr_tok(p).pos, false, "Count hit max depth, either params is over 1000 or 'parse_expression' did not move the parser forward", to_string(curr_tok(p).kind))
+        if count > max_depth {
+            internal_errorf(curr_tok(p).pos, false, "Count hit max depth, either params is over %d or 'parse_expression' did not move the parser forward", max_depth)
         }
         exp := parse_expression(p)
 
@@ -289,7 +296,7 @@ parse_fn_params :: proc(p: ^Parser) -> [dynamic]^Expression {
 
         //Unsure if this is quite right, might get stuck in infinite loop here if parse_expression doesnt move anywhere
         // if !next_tok(p){
-        //     parser_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
+        //     internal_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
         // }
     }
 
@@ -345,7 +352,7 @@ parse_array_access :: proc(p: ^Parser) -> ^Expression {
     curr = next_and_expect(p, .LBLOCK)
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: argument or ], got %s", to_string(curr_tok(p).kind))
+        syntax_errorf(curr_tok(p).pos, false, "Expected: argument or ], got %s", to_string(curr_tok(p).kind))
     }
 
     index := parse_expression(p)
@@ -357,7 +364,7 @@ parse_array_access :: proc(p: ^Parser) -> ^Expression {
     }
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: ], got %s", to_string(curr_tok(p).kind))
+        syntax_errorf(curr_tok(p).pos, false, "Expected: ], got %s", to_string(curr_tok(p).kind))
     }
 
     return create_expression(array, pos)  
@@ -370,7 +377,7 @@ parse_fn_args :: proc(p: ^Parser) -> [dynamic]^Expression {
     args: [dynamic]^Expression
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: argument or {{, got %s", to_string(curr_tok(p).kind))
+        internal_errorf(curr_tok(p).pos, false, "Expected: argument or {{, got %s", to_string(curr_tok(p).kind))
     }
 
     for !expect(p, .LBRACE) {
@@ -389,13 +396,13 @@ parse_array_decl :: proc(p: ^Parser) -> ^Expression {
     pos := curr_tok(p).pos
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
+        internal_errorf(curr_tok(p).pos, false, "Expected: param or ), got %s", to_string(curr_tok(p).kind))
     }
 
     count := 0
     for !expect(p, .RBLOCK) {
         if count > MAX_DEPTH {
-            parser_errorf(curr_tok(p).pos, false, "Count hit max depth: %s, either arrays elements is over %d or 'parse_expression' did not move the parser forward", MAX_DEPTH)
+            internal_errorf(curr_tok(p).pos, false, "Count hit max depth: %s, either arrays elements is over %d or 'parse_expression' did not move the parser forward", MAX_DEPTH)
         }
         exp := parse_expression(p)
 
@@ -419,7 +426,7 @@ parse_while :: proc(p: ^Parser) -> ^Expression {
     pos := curr.pos
     cond : ^Expression = nil
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after WHILE")
+        internal_errorf(curr.pos, false, "Unexpected EOF after WHILE")
     }
 
     if expect(p, .LBRACE) {
@@ -427,14 +434,18 @@ parse_while :: proc(p: ^Parser) -> ^Expression {
         cond = parse_expression(p)
 
         if !expect(p, .LBRACE) {
-            parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
-                to_string(curr_tok(p).kind))
+            if DEBUG {
+                internal_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
+                    to_string(curr_tok(p).kind))
+            } else {
+                syntax_errorf(curr.pos, false, "Expected: LBRACE, got %s", to_string(curr_tok(p).kind))
+            }
         }
 
     }
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: WHILE block {{, got EOF", to_string(curr_tok(p).kind))
+        syntax_errorf(curr_tok(p).pos, false, "Expected: WHILE block {{, got EOF", to_string(curr_tok(p).kind))
     }
 
     block := parse_block(p)
@@ -453,39 +464,41 @@ parse_for :: proc(p: ^Parser) -> ^Expression {
     pos := curr.pos
     cond : ^Expression = nil
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after FOR")
+        syntax_errorf(curr.pos, false, "Unexpected EOF after FOR")
     }
 
     iterator := parse_expression(p)
     if !expect(p, .DOTDOT) {
-        parser_errorf(curr.pos, false, "Expected: DOTDOT `..`, got %s, \n%s Error: Calling function\n", 
-            to_string(curr_tok(p).kind))
+        syntax_errorf(curr.pos, false, "Expected: DOTDOT `..`, got %s", to_string(curr_tok(p).kind))
     }
 
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after DOTDOT")
+        syntax_errorf(curr.pos, false, "Unexpected EOF after DOTDOT")
     }
 
     cond = parse_expression(p)
 
     if !expect(p, .DOTDOT) {
-        parser_errorf(curr.pos, false, "Expected: DOTDOT `..`, got %s, \n%s Error: Calling function\n", 
-            to_string(curr_tok(p).kind))
+        syntax_errorf(curr.pos, false, "Expected: DOTDOT `..`, got %s", to_string(curr_tok(p).kind))
     }
     
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after DOTDOT")
+        syntax_errorf(curr.pos, false, "Unexpected EOF after DOTDOT")
     }
 
     update_exp := parse_expression(p)
 
     if !expect(p, .LBRACE) {
-        parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
-            to_string(curr_tok(p).kind))
+        if DEBUG {
+            internal_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
+                to_string(curr_tok(p).kind))
+        } else {
+            syntax_errorf(curr.pos, false, "Expected: LBRACE, got %s", to_string(curr_tok(p).kind))
+        }
     }
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: IF block {{, got EOF", to_string(curr_tok(p).kind))
+        syntax_errorf(curr_tok(p).pos, false, "Expected: IF block {{, got EOF", to_string(curr_tok(p).kind))
     }
 
     block := parse_block(p)
@@ -505,18 +518,22 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
     curr := curr_tok(p)
     pos := curr.pos
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after IF")
+        syntax_errorf(curr.pos, false, "Unexpected EOF after IF")
     }
 
     cond := parse_expression(p)
 
     if !expect(p, .LBRACE) {
-        parser_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
-            to_string(curr_tok(p).kind))
+        if DEBUG {
+            internal_errorf(curr.pos, false, "Expected: LBRACE, got %s, \n%s Error: Calling function\n", 
+                to_string(curr_tok(p).kind))
+        } else {
+            syntax_errorf(curr.pos, false, "Expected: LBRACE, got %s", to_string(curr_tok(p).kind))
+        }
     }
 
     if !next_tok(p){
-        parser_errorf(curr_tok(p).pos, false, "Expected: IF block {{, got EOF", to_string(curr_tok(p).kind))
+        syntax_errorf(curr_tok(p).pos, false, "Expected: IF block {{, got EOF", to_string(curr_tok(p).kind))
     }
 
     block := parse_block(p)
@@ -525,11 +542,11 @@ parse_if :: proc(p: ^Parser) -> ^Expression {
     if expect(p, .ELSE) {
 
         if !next_tok(p){
-            parser_errorf(curr_tok(p).pos, false, "Expected: ELSE block {{, got EOF", to_string(curr_tok(p).kind))
+            syntax_errorf(curr_tok(p).pos, false, "Expected: ELSE block {{, got EOF", to_string(curr_tok(p).kind))
         }
 
         if !next_tok(p){
-            parser_errorf(curr_tok(p).pos, false, "Expected: ELSE block {{, got EOF", to_string(curr_tok(p).kind))
+            syntax_errorf(curr_tok(p).pos, false, "Expected: ELSE block {{, got EOF", to_string(curr_tok(p).kind))
         }
         elze = parse_block(p)
     }
@@ -550,7 +567,7 @@ parse_return :: proc(p: ^Parser) -> ^Expression {
     pos := curr.pos
 
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
+        syntax_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
     }
     exp := parse_expression(p)
 
@@ -572,7 +589,7 @@ parse_let :: proc(p: ^Parser) -> ^Expression {
     curr = next_and_expect(p, .EQUALS)
 
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
+        syntax_errorf(curr.pos, false, "Unexpected EOF after EQUALS")
     }
     exp: = parse_expression(p)
 
@@ -608,14 +625,14 @@ parse_number :: proc(p: ^Parser) -> ^Expression {
             // Shadowing is annoying
             parsed_value, ok := strconv.parse_i64(curr.literal) 
             if !ok {
-                parser_errorf(curr.pos, false, "could not parse int: %s", curr.literal)
+                internal_errorf(curr.pos, false, "could not parse int: %s", curr.literal)
             }
             value = Number(parsed_value)
         }
         case Kind.FLOAT64: {
             parsed_value, ok := strconv.parse_f64(curr.literal) 
             if !ok {
-                parser_errorf(curr.pos, false, "could not parse float: %s", curr.literal)
+                internal_errorf(curr.pos, false, "could not parse float: %s", curr.literal)
             }
             value = Number(parsed_value)
         }
@@ -645,7 +662,7 @@ parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
             case Kind.LT: return Binop_Kind.LT
             case Kind.GT: return Binop_Kind.GT
             case : 
-                parser_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
+                internal_errorf(pos, false, "Unexpected Kind %s, should be PLUS | MINUS | MULTIPLY | DIVIDE | MOD", to_string(kind))
         }
         assert(false, "UNREACHABLE")
         return Binop_Kind.PLUS
@@ -653,7 +670,7 @@ parse_binop :: proc(p: ^Parser, left: ^Expression) -> ^Expression {
     
     // Move past operator
     if !next_tok(p) {
-        parser_errorf(curr.pos, false, "Unexpected EOF after %s", to_string(curr.kind))
+        syntax_errorf(curr.pos, false, "Unexpected EOF after %s", to_string(curr.kind))
     }
 
     right := parse_precedence(p, operator_precedence) 
@@ -780,11 +797,11 @@ parse_prefix :: proc(p: ^Parser) -> ^Expression {
             //return parse_shell_call(p)
         }
 
-        case RPAREN: parser_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
-        case EQUALS: parser_errorf(pos, false, "Syntax error, found %s, assignment expressions require `let`\ne.g let foo = \"bar\"", to_string(curr.kind))
+        case RPAREN: syntax_errorf(pos, false, "Unexpected Kind %s", to_string(curr.kind))
+        case EQUALS: syntax_errorf(pos, false, "Found %s, assignment expressions require `let`\ne.g let foo = \"bar\"", to_string(curr.kind))
         case: 
             //TODO: catch issues in error reporting
-            parser_errorf(pos, false, "unknown prefix expression %s", to_string(curr.kind))
+            internal_errorf(pos, false, "unknown prefix expression %s", to_string(curr.kind))
     }
     //UNREACHABLE
     assert(false, "UNREACHABLE")

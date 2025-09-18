@@ -22,6 +22,7 @@ set cpo&vim
 " file.odin(line:column) Warning: message
 setlocal errorformat=
     \%f(%l:%c)\ Error:\ %m,
+    \%f(%l:%c)\ %m,
     \%f(%l:%c)\ Warning:\ %m,
     \%f(%l:%c)\ %m,
     \%f:%l:%c:\ %m,

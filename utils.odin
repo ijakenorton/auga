@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:strings"
 import "base:runtime"
 import "core:log"
+import "core:os"
 
 
 INDENT :: "  "
@@ -578,7 +579,7 @@ identifier_to_value_string :: proc(identifier: Identifier, env: ^Environment, in
     fmt.sbprintf(&out ,"%s: ", name)
     ident, ok := env_get(env, name)
     if !ok {
-        parser_errorf(identifier.pos, false, "Var: %s, is undefined in the current scope", name)
+        runtime_errorf(identifier.pos, false, "Var: %s, is undefined in the current scope", name)
     }
     fmt.sbprintf(&out ,"%s", literal_to_string(ident))
     return strings.to_string(out)
@@ -647,32 +648,25 @@ print_token :: proc(token: Token) {
 
 print :: proc{print_token}
 
-//TODO Maybe add this as a error with a level/prelude e.g. "Syntax error:", "Runtime Error"...
-@(disabled=ODIN_DISABLE_ASSERT)
-errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
+runtime_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
 	if !condition {
-		// NOTE(dragos): We are using the same trick as in builtin.assert
-		// to improve performance to make the CPU not
-		// execute speculatively, making it about an order of
-		// magnitude faster
-		@(cold)
-		internal :: proc(pos: Position ,loc: runtime.Source_Code_Location, fmt_str: string, args: ..any) {
-			p := context.assertion_failure_proc
-			if p == nil {
-				p = runtime.default_assertion_failure_proc
-			}
-
-            fmt.printf("\n%s Error: \n", to_string(pos))
-			message := fmt.tprintf(fmt_str, ..args)
-			log.log(.Fatal, message, location = loc)
-			p("runtime assertion", message, loc)
-		}
-		internal(pos, loc, fmt_str, ..args)
+        message := fmt.tprintf(fmt_str, ..args)
+        fmt.fprintf(os.stderr ,"\n%s Runtime Error: %s\n", to_string(pos), message)
+        os.exit(1)
 	}
 }
+
+syntax_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
+	if !condition {
+        message := fmt.tprintf(fmt_str, ..args)
+        fmt.fprintf(os.stderr ,"\n%s Syntax Error: %s\n", to_string(pos), message)
+        os.exit(1)
+	}
+}
+
 // NOTE adapted/yoinked from odin source
 @(disabled=ODIN_DISABLE_ASSERT)
-parser_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
+internal_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..any, loc := #caller_location) {
 	if !condition {
 		// NOTE(dragos): We are using the same trick as in builtin.assert
 		// to improve performance to make the CPU not
@@ -685,8 +679,8 @@ parser_errorf :: proc(pos: Position, condition: bool, fmt_str: string, args: ..a
 				p = runtime.default_assertion_failure_proc
 			}
 
-            fmt.printf("\n%s Error: \n", to_string(pos))
 			message := fmt.tprintf(fmt_str, ..args)
+            fmt.fprintf(os.stderr, "\n%s Error: %s\n", to_string(pos), message)
 			log.log(.Fatal, message, location = loc)
 			p("runtime assertion", message, loc)
 		}

@@ -16,6 +16,9 @@ for: for.auga auga
 ltgt: ltgt.auga auga 
 	./auga ltgt.auga
 
-all: shell array to_string for ltgt
+errors: errors.auga auga
+	./auga errors.auga
 
-.PHONY: shell array to_string for ltgt
+all: shell array to_string for ltgt errors
+
+.PHONY: shell array to_string for ltgt errors

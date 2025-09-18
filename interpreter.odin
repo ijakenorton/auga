@@ -59,9 +59,9 @@ expect_expression_type :: proc($T: typeid, node: ^Expression, message := "", loc
         case T: return v
         case: {
             if message == "" {
-                parser_errorf(Position{}, false, "Expected %v, got value: %v \n%s Error: From function below\n", typeid_of(T), v, loc)
+                internal_errorf(Position{}, false, "Expected %v, got value: %v \n%s Error: From function below\n", typeid_of(T), v, loc)
             } else {
-                parser_errorf(Position{}, false, message)
+                internal_errorf(Position{}, false, message)
             }
         }
     }
@@ -73,50 +73,18 @@ expect_literal_type :: proc($T: typeid, literal: Literal_Value_Type, message := 
         case T: return v
         case: {
             if message == "" {
-                parser_errorf(Position{},
+                internal_errorf(Position{},
                     false, 
                     "Expected %v, got value: %v \n%s Error: From caller function\n",
                     typeid_of(T), 
                     v, 
                     loc)
             } else {
-                parser_errorf(Position{}, false, message)
+                internal_errorf(Position{}, false, message)
             }
         }
     }
     return {}
-}
-
-literal_value_to_number :: proc(lit: Literal_Value_Type) -> Number {
-    result : Number
-    switch t in lit {
-        case Number: result = lit.(Number)
-        case Function: assert(false, "Must be a LITERAL NUMBER not Function, perhaps this should try to eval the function?")
-        case string: assert(false, "Must be a LITERAL NUMBER not string")
-        case bool: assert(false, "Must be a LITERAL NUMBER not bool")
-        case Return_Value: assert(false, "Must be a LITERAL NUMBER not Return_Value")
-        case Array_Literal: assert(false, "Must be a LITERAL NUMBER not Array_Literal literal")
-    }
-
-    return  result
-}
-
-
-literal_to_number :: proc(node: ^Expression) -> Number {
-
-    result : Number
-
-    literal_node := node.value.(Literal_Node)
-    switch t in literal_node.value{
-        case Number: result = literal_node.value.(Number)
-        case Function: assert(false, "Must be a LITERAL NUMBER not Function")
-        case Return_Value: assert(false, "Must be a LITERAL NUMBER not Return_Value")
-        case string: assert(false, "Must be a LITERAL NUMBER not string")
-        case bool : assert(false, "Must be a LITERAL NUMBER not bool")
-        case Array_Literal : assert(false, "Must be a LITERAL NUMBER not Array_Literal")
-    }
-
-    return  result
 }
 
 // Painful extra step but only way to get around the compiler complaining when 
@@ -241,7 +209,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case bool: return false
                 case Function: return false
                 case Array_Literal: return false
-                case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+                case Return_Value: internal_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
         case string: {
@@ -251,7 +219,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case bool: return false
                 case Function: return false
                 case Array_Literal: return false
-                case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+                case Return_Value: internal_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
         case bool: {
@@ -261,7 +229,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 case bool: return left.(bool) == right.(bool)
                 case Function: return false
                 case Array_Literal: return false
-                case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+                case Return_Value: internal_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
         case Function: {
@@ -272,7 +240,7 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                 //TODO Maybe need to adjust this in the future, possibly just pointer equality, or recursive struct equality
                 case Function: return false
                 case Array_Literal: return false
-                case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+                case Return_Value: internal_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
 
@@ -293,11 +261,11 @@ eval_same :: proc(left: Literal_Value_Type, right: Literal_Value_Type) -> bool {
                     }
                     return true
                 }
-                case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+                case Return_Value: internal_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
             }
         }
 
-        case Return_Value: parser_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
+        case Return_Value: internal_errorf(right.(Return_Value).pos ,false, "found Return in == expression")
     }
 
     assert(false, "UNREACHABLE")
@@ -375,6 +343,7 @@ eval_while :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
 
     return result
 }
+
 eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
     if_node := node.value.(If)
@@ -393,8 +362,6 @@ eval_if :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
 
     return result
 }
-
-
 
 eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
     result : Literal_Value_Type
@@ -445,17 +412,17 @@ eval_binop :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type {
             right_integer : i64
 
             switch t in left_number {
-                case f64: parser_errorf(node.pos ,false, "Operator '%' is only allowed with integers, got float64")
+                case f64: runtime_errorf(node.pos ,false, "Operator '%' is only allowed with integers, got float64")
                 case i64: left_integer = left_number.(i64)
             }
 
             switch t in right_number {
-                case f64: parser_errorf(node.pos ,false, "Operator '%' is only allowed with integers, got float64")
+                case f64: runtime_errorf(node.pos ,false, "Operator '%' is only allowed with integers, got float64")
                 case i64: right_integer = right_number.(i64)
             }
             result = Number(left_integer % right_integer)
         }
-        case : parser_errorf(node.pos ,false, "Expected Binop, got %s", binop.kind)
+        case : internal_errorf(node.pos ,false, "Expected Binop, got %s", binop.kind)
     }
 
     return result
@@ -467,7 +434,7 @@ eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_T
     
     ident, ok := env_get(env, identifier.name)
     if !ok {
-        parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", identifier.name)
+        runtime_errorf(node.pos, false, "Var: %s, is undefined in the current scope", identifier.name)
     }
     switch t in ident {
         case Number: result = ident.(Number)
@@ -475,8 +442,8 @@ eval_identifier :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_T
         case Function: result = ident.(Function) 
         case bool : result = ident.(bool)
         case Array_Literal : result = ident.(Array_Literal)
-        case Return_Value: parser_errorf(ident.(Return_Value).pos ,false, "found Return, expected Identifier")
-        case : parser_errorf(node.pos, false, "Var: %s, Expected NUMBER | STRING | FUNCTION | BOOL found: %v", ident, identifier.name)
+        case Return_Value: runtime_errorf(ident.(Return_Value).pos ,false, "found Return, expected Identifier")
+        case : runtime_errorf(node.pos, false, "Var: %s, Expected NUMBER | STRING | FUNCTION | BOOL | ARRAY_LITERAL | RETURN_VALUE found: %v", ident, identifier.name)
     }
     return result
 }
@@ -486,12 +453,12 @@ eval_literal :: proc(env: ^Environment, node: ^Expression) -> Literal_Value_Type
     result : Literal_Value_Type
     literal_node := expect_expression_type(Literal_Node, node)
     switch t in literal_node.value {
-        case Number: result = literal_to_number(node)
-        case Function: result = eval_function(env, node)
+        case Number: result = literal_node.value.(Number)
         case string: result = literal_node.value.(string)
         case bool: result = literal_node.value.(bool)
+        case Function: result = eval_function(env, node)
         case Array_Literal: result = eval_array(env, node)
-        case Return_Value: parser_errorf(literal_node.value.(Return_Value).pos ,false, "found Return, expected literal")
+        case Return_Value: internal_errorf(literal_node.value.(Return_Value).pos ,false, "found Return, expected literal")
     }
     return result
 }
@@ -521,7 +488,7 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
     } 
     else if name == "shell" {
         if len(params) < 1 {
-            parser_errorf(node.pos, false, "shell() expects at least 1 argument")
+            runtime_errorf(node.pos, false, "shell() expects at least 1 argument")
         }
         
         // First param is the command
@@ -538,10 +505,9 @@ eval_function_call :: proc(env: ^Environment, node: ^Expression) -> Literal_Valu
         result_array := eval_shell(command, args[:])
         return result_array
     } else {
-
         var, ok := env_get(env, name)
         if !ok {
-            parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", name)
+            runtime_errorf(node.pos, false, "Var: %s, is undefined in the current scope", name)
         }
 
         fn = expect_literal_type(Function, var)
@@ -640,7 +606,7 @@ eval_array_access :: proc(env: ^Environment, node: ^Expression) -> Literal_Value
     array := expect_expression_type(Array_Access, node)
     array_literal, ok := env_get(env, array.name)
     if !ok {
-        parser_errorf(node.pos, false, "Var: %s, is undefined in the current scope", array.name)
+        runtime_errorf(node.pos, false, "Var: %s, is undefined in the current scope", array.name)
     }
     array_checked := expect_literal_type(Array_Literal, array_literal)
 
@@ -711,14 +677,13 @@ main :: proc() {
     name : string
     file_name: string
     inflag: string
-    debug:= false
     args, name = shift(args)
     args, file_name = shift(args)
 
     if len(args) > 0 {
         args, inflag = shift(args)
         if inflag == "debug" {
-            debug = true 
+            DEBUG = true 
         }
     }
 
@@ -757,7 +722,7 @@ main :: proc() {
     for node in ast {
         result := eval(&env, node)
 
-        if debug {
+        if DEBUG {
             switch t in result {
                 case Function: fmt.printfln("[DEBUG]: %s",function_to_value_string(result.(Function)))
                 case Return_Value: fmt.printfln("[DEBUG]: %s",to_string(result.(Return_Value)))
