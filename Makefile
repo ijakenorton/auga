@@ -1,3 +1,5 @@
+augac: auga.c
+	gcc -o augac.exe auga.c && ./augac.exe
 auga: *.odin
 	odin build .
 

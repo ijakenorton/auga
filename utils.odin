@@ -17,10 +17,6 @@ Logger_Level :: enum {
 	Fatal   = 40,
 }
 
-perror :: proc(pos: Position, message: string) -> string {
-    return fmt.aprintf("\n%s Error: %s", to_string(pos), message)
-}
-
 
 shift :: proc(args: []string) -> ([]string, string) {
     return args[1:], args[0]
