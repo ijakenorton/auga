@@ -808,7 +808,7 @@ NOBDEF char *nob_temp_running_executable_path(void);
 #  if defined(_WIN32)
 #    if defined(__clang__)
 #      if defined(__cplusplus)
-#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c++", "-o", binary_path, source_path
+#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "--target=x86_64-w64-mingw32", "-o", binary_path, source_path
 #      else
 #        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c", "-o", binary_path, source_path
 #      endif
