@@ -87,11 +87,13 @@ If :: struct {
     elze: [dynamic]^Expression,
     pos: Position,
 }
+
 While :: struct {
     cond: ^Expression,
     body: [dynamic]^Expression,
     pos: Position,
 }
+
 For :: struct {
     cond: ^Expression,
     iterator: ^Expression,
@@ -238,14 +240,6 @@ create_expression :: proc(value: Value_Type, pos: Position) -> ^Expression {
     exp.pos = pos
     return exp
 }
-
-//Unsure if this is needed
-// create_expression_allocator :: proc(value: Value_Type, pos: Position, ctx: Allocator ) -> ^Expression {
-//     exp := new(Expression, context.temp_allocator)
-//     exp.value = value
-//     exp.pos = pos
-//     return exp
-// }
 
 parse_block :: proc(p: ^Parser) -> [dynamic]^Expression {
     curr := curr_tok(p)

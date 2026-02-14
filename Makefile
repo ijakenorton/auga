@@ -1,5 +1,5 @@
-augac: auga.c
-	gcc -o augac.exe auga.c && ./augac.exe
+auga.exe: auga.c
+	clang --target=x86_64-w64-mingw32 -Wall -Wextra -o auga auga.c
 auga: *.odin
 	odin build .
 
