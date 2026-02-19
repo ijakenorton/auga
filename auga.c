@@ -17,7 +17,7 @@ static Arena a = {0};
 \\================================================================================//
 */
 // Unsure if this should be here
-#define INDENT "__"
+#define INDENT "  "
 /*
 //================================================================================\\
 //CONSTANTS_END
@@ -59,8 +59,6 @@ typedef enum {
     LEXER_BSLASH,
     LEXER_LPAREN,
     LEXER_RPAREN,
-    LEXER_LBRACKET,
-    LEXER_RBRACKET,
     LEXER_LBRACE,
     LEXER_RBRACE,
     LEXER_LBLOCK,
@@ -74,50 +72,48 @@ typedef enum {
 } Lexer_Kind;
 
 char *to_string_kind(Lexer_Kind kind) {
-    if      (kind == LEXER_LET)           return "LET";
-    else if (kind == LEXER_FN)            return "FN";
-    else if (kind == LEXER_LT)            return "LT";
-    else if (kind == LEXER_GT)            return "GT";
-    else if (kind == LEXER_RETURN)        return "RETURN";
-    else if (kind == LEXER_FOR)           return "FOR";
-    else if (kind == LEXER_WHILE)         return "WHILE";
-    else if (kind == LEXER_IF)            return "IF";
-    else if (kind == LEXER_ELSE)          return "ELSE";
-    else if (kind == LEXER_TRUE)          return "TRUE";
-    else if (kind == LEXER_FALSE)         return "FALSE";
-    else if (kind == LEXER_PRINT)         return "PRINT";
-    else if (kind == LEXER_SHELL)         return "SHELL";
-    else if (kind == LEXER_IDENT)         return "IDENT";
-    else if (kind == LEXER_DOT)           return "DOT";
-    else if (kind == LEXER_DOTDOT)        return "DOTDOT";
-    else if (kind == LEXER_EQUALS)        return "EQUALS";
-    else if (kind == LEXER_SAME)          return "SAME";
-    else if (kind == LEXER_INT64)         return "INT64";
-    else if (kind == LEXER_FLOAT64)       return "FLOAT64";
-    else if (kind == LEXER_PLUS)          return "PLUS";
-    else if (kind == LEXER_MINUS)         return "MINUS";
-    else if (kind == LEXER_MOD)           return "MOD";
-    else if (kind == LEXER_MULTIPLY)      return "MULTIPLY";
-    else if (kind == LEXER_DIVIDE)        return "DIVIDE";
-    else if (kind == LEXER_BSLASH)        return "BSLASH";
-    else if (kind == LEXER_LPAREN)        return "LPAREN";
-    else if (kind == LEXER_RPAREN)        return "RPAREN";
-    else if (kind == LEXER_LBRACE)        return "LBRACE";
-    else if (kind == LEXER_RBRACE)        return "RBRACE";
-    else if (kind == LEXER_LBLOCK)        return "LBLOCK";
-    else if (kind == LEXER_RBLOCK)        return "RBLOCK";
-    else if (kind == LEXER_LBRACKET)      return "LBRACKET";
-    else if (kind == LEXER_RBRACKET)      return "RBRACKET";
-    else if (kind == LEXER_SQUOTE)        return "SQUOTE";
-    else if (kind == LEXER_STRING)        return "STRING";
-    else if (kind == LEXER_QUESTION_MARK) return "QUESTION_MARK";
-    else if (kind == LEXER_BANG)          return "BANG";
-    else if (kind == LEXER_COMMA)         return "COMMA";
-    else if (kind == LEXER_NEWLINE)       return "NEWLINE";
-    else if (kind == LEXER_EOF)           return "EOF";
+    if      (kind == LEXER_LET)           return "\"LET\": let";
+    else if (kind == LEXER_FN)            return "\"FN\": fn";
+    else if (kind == LEXER_LT)            return "\"LT\": <";
+    else if (kind == LEXER_GT)            return "\"GT\": >";
+    else if (kind == LEXER_RETURN)        return "\"RETURN\": return";
+    else if (kind == LEXER_FOR)           return "\"FOR\": for";
+    else if (kind == LEXER_WHILE)         return "\"WHILE\": while";
+    else if (kind == LEXER_IF)            return "\"IF\": if";
+    else if (kind == LEXER_ELSE)          return "\"ELSE\": else";
+    else if (kind == LEXER_TRUE)          return "\"TRUE\": true";
+    else if (kind == LEXER_FALSE)         return "\"FALSE\": false";
+    else if (kind == LEXER_PRINT)         return "\"PRINT\"";
+    else if (kind == LEXER_SHELL)         return "\"SHELL\"";
+    else if (kind == LEXER_IDENT)         return "\"IDENT\"";
+    else if (kind == LEXER_DOT)           return "\"DOT\": .";
+    else if (kind == LEXER_DOTDOT)        return "\"DOTDOT\": ..";
+    else if (kind == LEXER_EQUALS)        return "\"EQUALS\": = ";
+    else if (kind == LEXER_SAME)          return "\"SAME\": ==";
+    else if (kind == LEXER_INT64)         return "\"INT64\"";
+    else if (kind == LEXER_FLOAT64)       return "\"FLOAT64\"";
+    else if (kind == LEXER_PLUS)          return "\"PLUS\": +";
+    else if (kind == LEXER_MINUS)         return "\"MINUS\": -";
+    else if (kind == LEXER_MOD)           return "\"MOD\": %";
+    else if (kind == LEXER_MULTIPLY)      return "\"MULTIPLY\": *";
+    else if (kind == LEXER_DIVIDE)        return "\"DIVIDE\": /";
+    else if (kind == LEXER_BSLASH)        return "\"BSLASH\": \\";
+    else if (kind == LEXER_LPAREN)        return "\"LPAREN\": (";
+    else if (kind == LEXER_RPAREN)        return "\"RPAREN\": )";
+    else if (kind == LEXER_LBRACE)        return "\"LBRACE\": {";
+    else if (kind == LEXER_RBRACE)        return "\"RBRACE\": }";
+    else if (kind == LEXER_LBLOCK)        return "\"LBLOCK: [\"";
+    else if (kind == LEXER_RBLOCK)        return "\"RBLOCK\": ]";
+    else if (kind == LEXER_SQUOTE)        return "\"SQUOTE\"";
+    else if (kind == LEXER_STRING)        return "\"STRING\"";
+    else if (kind == LEXER_QUESTION_MARK) return "\"QUESTION_MARK\"";
+    else if (kind == LEXER_BANG)          return "\"BANG\"";
+    else if (kind == LEXER_COMMA)         return "\"COMMA\"";
+    else if (kind == LEXER_NEWLINE)       return "\"NEWLINE\"";
+    else if (kind == LEXER_EOF)           return "\"EOF\"";
 
-    assert(false && "UNREACHABLE");
-    return "INVALID";
+    assert(false && "\"UNREACHABLE");
+    return "\"INVALID";
 }
 
 Lexer_Kind keyword_or_identifier(char* literal) {
@@ -745,6 +741,13 @@ typedef struct {
 } Array_Access;
 
 typedef struct {
+    char *name;
+    Expression *index;
+    Expression *exp;
+    Position pos;
+} Array_Insert;
+
+typedef struct {
     Expression *cond;
     Expressions body;
     Expressions elze;
@@ -832,6 +835,7 @@ typedef enum {
     VAL_RETURN,
     VAL_ARRAY,
     VAL_ARRAY_ACCESS,
+    VAL_ARRAY_INSERT,
 } Value_Kind;
 
 union Value_Type {
@@ -848,6 +852,7 @@ union Value_Type {
     Return returnn;
     Array array;
     Array_Access array_access;
+    Array_Insert array_insert;
 };
 
 struct Expression {
@@ -1267,6 +1272,30 @@ char *to_string_array_access(Array_Access access, int indent) {
     return arena_strdup(&a, sb.items);
 }
 
+char *to_string_array_insert(Array_Insert insert, int indent) {
+    String_Builder sb = {0};
+
+    sb_pad_left(&sb, indent);
+    sb_append_cstr(&sb, "Array_Insert(\n");
+
+    sb_pad_left(&sb, indent + 1);
+    sb_appendf(&sb, "name: %s,\n", insert.name);
+
+    sb_pad_left(&sb, indent + 1);
+    sb_append_cstr(&sb, "index: \n");
+    sb_appendf(&sb, "%s\n", to_string_expression(insert.index, indent + 2));
+    sb_append_cstr(&sb, "value: (\n");
+    sb_appendf(&sb, "%s\n", to_string_expression(insert.exp, indent + 2));
+    sb_pad_left(&sb, indent + 1);
+    sb_append_cstr(&sb, "),\n");
+
+    sb_pad_left(&sb, indent);
+    sb_append_cstr(&sb, ")");
+
+    sb_append_null(&sb);
+    return arena_strdup(&a, sb.items);
+}
+
 char *to_string_array_literal(Array_Literal array, int indent) {
     String_Builder sb = {0};
 
@@ -1296,6 +1325,7 @@ char *to_string_expression(Expression *expr, int indent) {
         case VAL_BINOP:         return to_string_binop(expr->value.binop, indent);
         case VAL_ARRAY:         return to_string_array(expr->value.array, indent);
         case VAL_ARRAY_ACCESS:  return to_string_array_access(expr->value.array_access, indent);
+        case VAL_ARRAY_INSERT:  return to_string_array_insert(expr->value.array_insert, indent);
         case VAL_FUNCTION_CALL: return to_string_function_call(expr->value.function_call, indent);
         case VAL_FUNCTION:      return to_string_function(expr->value.function, indent);
         case VAL_RETURN:        return to_string_return(expr->value.returnn, indent);
@@ -1365,6 +1395,8 @@ Token peek_tok(Parser *p) {
 }
 
 bool next_tok(Parser *p) {
+
+    // puts(to_string_token(curr_tok(p), 0));
     if (peek_tok(p).kind == LEXER_EOF) {
         return false;
     }
@@ -1401,12 +1433,34 @@ Precedence token_precedence(Parser *p) {
         case LEXER_LPAREN:
         case LEXER_PRINT:
             return PRECEDENCE_CALL;
-        case LEXER_LET: case LEXER_FN: case LEXER_RETURN: case LEXER_IF: case LEXER_TRUE: case LEXER_FALSE:
-        case LEXER_SHELL: case LEXER_IDENT: case LEXER_STRING: case LEXER_DOT: case LEXER_INT64:
-        case LEXER_FLOAT64: case LEXER_BSLASH: case LEXER_RPAREN: case LEXER_LBRACKET: case LEXER_RBRACKET:
-        case LEXER_LBRACE: case LEXER_RBRACE: case LEXER_SQUOTE: case LEXER_QUESTION_MARK: case LEXER_BANG:
-        case LEXER_COMMA: case LEXER_NEWLINE: case LEXER_EOF: case LEXER_ELSE: case LEXER_FOR: case LEXER_WHILE:
-        case LEXER_DOTDOT: case LEXER_LBLOCK: case LEXER_RBLOCK:
+        case LEXER_LET: 
+        case LEXER_FN: 
+        case LEXER_RETURN: 
+        case LEXER_IF: 
+        case LEXER_TRUE: 
+        case LEXER_FALSE:
+        case LEXER_SHELL: 
+        case LEXER_IDENT: 
+        case LEXER_STRING: 
+        case LEXER_DOT: 
+        case LEXER_INT64:
+        case LEXER_FLOAT64: 
+        case LEXER_BSLASH: 
+        case LEXER_RPAREN:
+        case LEXER_LBRACE: 
+        case LEXER_RBRACE: 
+        case LEXER_SQUOTE: 
+        case LEXER_QUESTION_MARK: 
+        case LEXER_BANG:
+        case LEXER_COMMA: 
+        case LEXER_NEWLINE: 
+        case LEXER_EOF: 
+        case LEXER_ELSE: 
+        case LEXER_FOR: 
+        case LEXER_WHILE:
+        case LEXER_DOTDOT: 
+        case LEXER_LBLOCK: 
+        case LEXER_RBLOCK:
             return PRECEDENCE_LOWEST;
         default:
             fprintf(stderr, "Unexpected KIND: %s\n", to_string_kind(curr_tok(p).kind));
@@ -1551,6 +1605,8 @@ Expression *parse_shell_call(Parser *p) {
 }
 
 Expression *parse_array_access(Parser *p) {
+    nob_log(NOB_WARNING,"here\n");
+
     Token curr = curr_tok(p);
     char *name = curr.literal;
     Position pos = curr.pos;
@@ -1564,17 +1620,40 @@ Expression *parse_array_access(Parser *p) {
     }
 
     Expression *index = parse_expression(p);
-
     Array_Access array = {
         .name = name,
         .index = index,
         .pos = pos,
     };
 
+    printf("[array_access: expression]: %s\n", to_string_expression(index, 0));
+
     if (!next_tok(p)) {
         fprintf(stderr, "%s Error: Expected: ], got %s\n",
                 to_string_pos(curr_tok(p).pos, 0), to_string_kind(curr_tok(p).kind));
         assert(false);
+    }
+    printf("TOken after array_access_exp: %s\n", to_string_token(curr_tok(p), 0));
+
+    // Check for array insert option e.g. arr[0] = "array ele 0"
+    if (curr_tok(p).kind == LEXER_EQUALS) {
+        // if (!next_tok(p)) {
+        //     return create_expression(VAL_ARRAY_ACCESS, (Value_Type){ .array_access = array }, pos);
+        // }
+        if (!next_tok(p)) {
+            return create_expression(VAL_ARRAY_ACCESS, (Value_Type){ .array_access = array }, pos);
+        }
+
+        Expression *exp = parse_expression(p);
+
+        Array_Insert array_insert = {
+            .name = name,
+            .index = index,
+            .exp = exp,
+            .pos = pos,
+        };
+        return create_expression(VAL_ARRAY_INSERT, (Value_Type){ .array_insert = array_insert}, pos);
+
     }
 
     return create_expression(VAL_ARRAY_ACCESS, (Value_Type){ .array_access = array }, pos);
@@ -1920,6 +1999,7 @@ bool has_infix_parser(Lexer_Kind kind) {
 }
 
 Expression *parse_precedence(Parser *p, Precedence precedence) {
+    printf("[parse_precedence]: %s\n", to_string_token(curr_tok(p), 0));
     Expression *left = parse_prefix(p);
 
     while (token_precedence(p) > precedence) {
@@ -1927,6 +2007,7 @@ Expression *parse_precedence(Parser *p, Precedence precedence) {
         left = parse_binop(p, left);
     }
 
+    printf("[expression]: %s\n", to_string_expression(left, 0));
     return left;
 }
 
@@ -2255,6 +2336,8 @@ Literal_Value eval_block(Environment *env, Expressions exps);
 // --- Eval helpers ---
 
 Literal_Value eval_literal(Environment *env, Expression *node) {
+    // TODO check why we pass the env if not used
+    (void)env;
     Literal_Node literal_node = node->value.literal_node;
     if (literal_node.value == NULL) {
         internal_errorf(node->pos, "found nil literal");
@@ -2493,6 +2576,7 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
     }
 
     if (strcmp(name, "shell") == 0) {
+#ifndef _WIN32
         if (params.count < 1) {
             runtime_errorf(node->pos, "shell() expects at least 1 argument");
         }
@@ -2534,6 +2618,10 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
         result_array.pos = node->pos;
 
         return make_array_literal(result_array);
+
+#endif /* ifdef _WIN32 */
+
+        TODO("shell not implemented for windows yet");
     }
 
     // User-defined function call
@@ -2609,6 +2697,28 @@ Literal_Value eval_array_access(Environment *env, Expression *node) {
     return eval_array_index(arr_result.value.value.array_literal, index_val.value.number);
 }
 
+Literal_Value eval_array_insert(Environment *env, Expression *node) {
+    (void)env;
+    (void)node;
+    TODO("IMPLEMENT Array_Access here");
+    // Array_Access access = node->value.array_access;
+    //
+    // Env_Result arr_result = env_get(env, access.name);
+    // if (!arr_result.found) {
+    //     runtime_errorf(node->pos, "Var: %s, is undefined in the current scope", access.name);
+    // }
+    // if (arr_result.value.kind != LIT_ARRAY_LITERAL) {
+    //     runtime_errorf(node->pos, "Var: %s, is not an array", access.name);
+    // }
+    //
+    // Literal_Value index_val = eval(env, access.index);
+    // if (index_val.kind != LIT_NUMBER) {
+    //     runtime_errorf(node->pos, "Array index must be a number");
+    // }
+    //
+    // return eval_array_index(arr_result.value.value.array_literal, index_val.value.number);
+}
+
 // --- Main eval dispatch ---
 
 Literal_Value eval(Environment *env, Expression *node) {
@@ -2621,6 +2731,7 @@ Literal_Value eval(Environment *env, Expression *node) {
         case VAL_ARRAY:         return eval_array(env, node);
         case VAL_FUNCTION_CALL: return eval_function_call(env, node);
         case VAL_ARRAY_ACCESS:  return eval_array_access(env, node);
+        case VAL_ARRAY_INSERT:  return eval_array_insert(env, node);
         case VAL_BINOP:         return eval_binop(env, node);
         case VAL_IF:            return eval_if(env, node);
         case VAL_WHILE:         return eval_while(env, node);

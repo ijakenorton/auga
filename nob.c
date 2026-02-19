@@ -7,7 +7,17 @@ int main(int argc, char **argv)
     NOB_GO_REBUILD_URSELF(argc, argv);
     Nob_Cmd cmd = {0};
 #ifdef _WIN32
-    nob_cmd_append(&cmd, "clang", "--target=x86_64-w64-mingw32", "-Wall", "-Wextra", "-o", "auga", "auga.c");
+    mkdir_if_not_exists("./build");
+    nob_cmd_append(&cmd, 
+        "clang", 
+        "--target=x86_64-w64-mingw32", 
+        "-Wall", 
+        "-Wextra", 
+        "-Wswitch",
+        "-o", 
+        "build/auga", 
+        "auga.c"
+    );
 #else
     nob_cmd_append(&cmd, "clang", "-Wall", "-Wextra", "-o", "auga", "auga.c");
 #endif /* ifdef WIN64 */
