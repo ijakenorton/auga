@@ -1605,8 +1605,6 @@ Expression *parse_shell_call(Parser *p) {
 }
 
 Expression *parse_array_access(Parser *p) {
-    nob_log(NOB_WARNING,"here\n");
-
     Token curr = curr_tok(p);
     char *name = curr.literal;
     Position pos = curr.pos;
@@ -1626,14 +1624,14 @@ Expression *parse_array_access(Parser *p) {
         .pos = pos,
     };
 
-    printf("[array_access: expression]: %s\n", to_string_expression(index, 0));
+    // printf("[array_access: expression]: %s\n", to_string_expression(index, 0));
 
     if (!next_tok(p)) {
         fprintf(stderr, "%s Error: Expected: ], got %s\n",
                 to_string_pos(curr_tok(p).pos, 0), to_string_kind(curr_tok(p).kind));
         assert(false);
     }
-    printf("TOken after array_access_exp: %s\n", to_string_token(curr_tok(p), 0));
+    // printf("TOken after array_access_exp: %s\n", to_string_token(curr_tok(p), 0));
 
     // Check for array insert option e.g. arr[0] = "array ele 0"
     if (curr_tok(p).kind == LEXER_EQUALS) {
@@ -1999,7 +1997,7 @@ bool has_infix_parser(Lexer_Kind kind) {
 }
 
 Expression *parse_precedence(Parser *p, Precedence precedence) {
-    printf("[parse_precedence]: %s\n", to_string_token(curr_tok(p), 0));
+    // printf("[parse_precedence]: %s\n", to_string_token(curr_tok(p), 0));
     Expression *left = parse_prefix(p);
 
     while (token_precedence(p) > precedence) {
@@ -2007,7 +2005,7 @@ Expression *parse_precedence(Parser *p, Precedence precedence) {
         left = parse_binop(p, left);
     }
 
-    printf("[expression]: %s\n", to_string_expression(left, 0));
+    // printf("[expression]: %s\n", to_string_expression(left, 0));
     return left;
 }
 
@@ -2664,8 +2662,7 @@ Literal_Value eval_array(Environment *env, Expression *node) {
 
     return make_array_literal(result);
 }
-
-Literal_Value eval_array_index(Array_Literal array, Number index) {
+int64_t to_array_index(Array_Literal array, Number index) {
     int64_t idx;
     if (index.kind == NUMBER_INT) {
         idx = index.i;
@@ -2675,6 +2672,12 @@ Literal_Value eval_array_index(Array_Literal array, Number index) {
     if (idx < 0 || (size_t)idx >= array.count) {
         runtime_errorf(array.pos, "Array index %lld out of bounds (length %zu)", (long long)idx, array.count);
     }
+    return idx;
+}
+
+Literal_Value eval_array_index(Array_Literal array, Number index) {
+    int64_t idx = to_array_index(array, index);
+
     return array.items[idx];
 }
 
@@ -2698,25 +2701,48 @@ Literal_Value eval_array_access(Environment *env, Expression *node) {
 }
 
 Literal_Value eval_array_insert(Environment *env, Expression *node) {
-    (void)env;
-    (void)node;
-    TODO("IMPLEMENT Array_Access here");
-    // Array_Access access = node->value.array_access;
-    //
-    // Env_Result arr_result = env_get(env, access.name);
-    // if (!arr_result.found) {
-    //     runtime_errorf(node->pos, "Var: %s, is undefined in the current scope", access.name);
-    // }
-    // if (arr_result.value.kind != LIT_ARRAY_LITERAL) {
-    //     runtime_errorf(node->pos, "Var: %s, is not an array", access.name);
-    // }
-    //
-    // Literal_Value index_val = eval(env, access.index);
-    // if (index_val.kind != LIT_NUMBER) {
-    //     runtime_errorf(node->pos, "Array index must be a number");
-    // }
-    //
-    // return eval_array_index(arr_result.value.value.array_literal, index_val.value.number);
+    Array_Insert insert = node->value.array_insert;
+
+    Env_Result arr_result = env_get(env, insert.name);
+    if (!arr_result.found) {
+        runtime_errorf(node->pos, "Var: %s, is undefined in the current scope", insert.name);
+    }
+
+    if (arr_result.value.kind != LIT_ARRAY_LITERAL) {
+        runtime_errorf(node->pos, "Var: %s, is not an array", insert.name);
+    }
+    Array_Literal array = arr_result.value.value.array_literal;
+
+    Literal_Value index_val = eval(env, insert.index);
+    if (index_val.kind != LIT_NUMBER) {
+        runtime_errorf(node->pos, "Array index must be a number");
+    }
+    Number index = index_val.value.number;
+
+    int64_t idx;
+    // TODO refactor to coerce_number?
+    if (index.kind == NUMBER_INT) {
+        idx = index.i;
+    } else {
+        idx = (int64_t)index.f;
+    }
+    if (idx < 0 ) {
+        runtime_errorf(array.pos, "Array index %lld out of bounds, must be a positive number", (long long)idx, array.count);
+    }
+
+    Literal_Value val = eval(env, insert.exp);
+
+    // Pad array with zeros for now
+    while (array.count <= (size_t)idx) {
+        arena_da_append(&a, &array, make_number_int(0));
+    }
+
+    array.items[(size_t)idx] = val;
+    env_set(env, insert.name, make_array_literal(array));
+    // TODO("Need to check scoping rules");
+
+    // TODO Unsure if this is the right thing to return but does allow for using (arr[0] = val) as an expression
+    return val;
 }
 
 // --- Main eval dispatch ---
