@@ -1,5 +1,5 @@
 auga.exe: auga.c
-	clang --target=x86_64-w64-mingw32 -Wall -Wextra -o auga auga.c
+	./nob -run
 auga: *.odin
 	odin build .
 
