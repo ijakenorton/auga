@@ -1,0 +1,10 @@
+# Ensure scripts use LF line endings
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# Mark binaries as binary so Git never touches line endings
+tools/linux/tcc binary
+tools/linux/libtcc1.a binary
+tools/windows/tcc.exe binary
+tools/windows/lib/*.a binary
+tools/windows/lib/*.def binary
