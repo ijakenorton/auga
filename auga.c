@@ -2144,6 +2144,21 @@ void env_set(Environment *env, const char *key, Literal_Value value) {
     arena_da_append(&a,env, entry);
 }
 
+void env_set_existing(Environment *env, const char *key, Literal_Value value) {
+    Environment *curr = env;
+    while (curr != NULL) {
+        for (size_t i = 0; i < curr->count; ++i) {
+            if (strcmp(curr->items[i].key, key) == 0) {
+                curr->items[i].value = value;
+                return;
+            }
+        }
+        curr = curr->parent;
+    }
+    // Not found — create in current scope
+    env_set(env, key, value);
+}
+
 // --- Value constructors ---
 
 Literal_Value make_number_int(int64_t v) {
@@ -2738,7 +2753,7 @@ Literal_Value eval_array_insert(Environment *env, Expression *node) {
     }
 
     array.items[(size_t)idx] = val;
-    env_set(env, insert.name, make_array_literal(array));
+    env_set_existing(env, insert.name, make_array_literal(array));
     // TODO("Need to check scoping rules");
 
     // TODO Unsure if this is the right thing to return but does allow for using (arr[0] = val) as an expression
