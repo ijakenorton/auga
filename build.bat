@@ -17,14 +17,14 @@ if %errorlevel% == 0 (
 where gcc >nul 2>&1
 if %errorlevel% == 0 (
     echo CC: gcc
-    gcc -Wall -Wextra -o "%BUILD%\auga.exe" "%SCRIPT_DIR%auga.c"
+    gcc -Wall -Wextra -Wswitch -o "%BUILD%\auga.exe" "%SCRIPT_DIR%auga.c"
     goto done
 )
 
 where clang >nul 2>&1
 if %errorlevel% == 0 (
     echo CC: clang
-    clang -Wall -Wextra -o "%BUILD%\auga.exe" "%SCRIPT_DIR%auga.c"
+    clang -Wall -Wextra -Wswitch -o "%BUILD%\auga.exe" "%SCRIPT_DIR%auga.c"
     goto done
 )
 

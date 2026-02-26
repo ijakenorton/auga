@@ -22,5 +22,5 @@ else
 fi
 
 echo "CC: $CC"
-$CC -Wall -Wextra -o "$BUILD/auga" "$SCRIPT_DIR/auga.c"
+$CC -Wall -Wextra -Wswitch -o "$BUILD/auga" "$SCRIPT_DIR/auga.c"
 echo "Built: $BUILD/auga"
