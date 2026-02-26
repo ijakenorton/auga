@@ -42,6 +42,7 @@ typedef enum {
     LEXER_MOD,
     LEXER_PRINT,
     LEXER_SHELL,
+    LEXER_SIZE,
     LEXER_IDENT,
     LEXER_STRING,
     LEXER_DOT,
@@ -85,6 +86,7 @@ char *to_string_kind(Lexer_Kind kind) {
     else if (kind == LEXER_FALSE)         return "\"FALSE\": false";
     else if (kind == LEXER_PRINT)         return "\"PRINT\"";
     else if (kind == LEXER_SHELL)         return "\"SHELL\"";
+    else if (kind == LEXER_SHELL)         return "\"SIZE\"";
     else if (kind == LEXER_IDENT)         return "\"IDENT\"";
     else if (kind == LEXER_DOT)           return "\"DOT\": .";
     else if (kind == LEXER_DOTDOT)        return "\"DOTDOT\": ..";
@@ -128,6 +130,7 @@ Lexer_Kind keyword_or_identifier(char* literal) {
     else if (strcmp(literal, "true")   == 0 ) return LEXER_TRUE;
     else if (strcmp(literal, "false")  == 0 ) return LEXER_FALSE;
     else if (strcmp(literal, "shell")  == 0 ) return LEXER_SHELL;
+    else if (strcmp(literal, "size")  == 0 ) return LEXER_SIZE;
 
     return LEXER_IDENT;
 }
@@ -866,6 +869,7 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Ast;
+Ast ast = {0};
 
 typedef struct {
     size_t curr;
@@ -927,8 +931,11 @@ char *to_string_array_literal(Array_Literal array, int indent);
 void sb_body_to_string(String_Builder *sb, Expressions body, int indent) {
     for (size_t i = 0; i < body.count; ++i) {
         sb_appendf(sb, "%s", to_string_expression(body.items[i], indent));
-        sb_append_cstr(sb, "\n");
+        if (i < body.count - 1){
+            sb_append_cstr(sb, "\n");
+        }
     }
+    sb_append_cstr(sb, "\n");
 }
 
 char *to_string_boolean(bool flag, int indent) {
@@ -983,14 +990,12 @@ char *to_string_literal_node(Literal_Node node, int indent) {
 
     sb_pad_left(&sb, indent + 1);
     sb_append_cstr(&sb, "value: (\n");
-
     sb_appendf(&sb, "%s\n", to_string_literal(node.value, indent + 2));
-
     sb_pad_left(&sb, indent + 1);
     sb_append_cstr(&sb, ")\n");
 
     sb_pad_left(&sb, indent);
-    sb_append_cstr(&sb, ")");
+    sb_append_cstr(&sb, ")\n");
 
     sb_append_null(&sb);
     return arena_strdup(&a, sb.items);
@@ -1014,7 +1019,7 @@ char *to_string_binding(Binding binding, int indent) {
     sb_appendf(&sb, "name: %s,\n", binding.name);
 
     sb_pad_left(&sb, indent + 1);
-    sb_append_cstr(&sb, "value: \n");
+    sb_append_cstr(&sb, "value: (\n");
     sb_appendf(&sb, "%s\n", to_string_expression(binding.value, indent + 2));
 
     sb_pad_left(&sb, indent);
@@ -1190,8 +1195,9 @@ char *to_string_function(Function function, int indent) {
     if (function.args.count > 0) {
         sb_append_cstr(&sb, "\n");
         sb_body_to_string(&sb, function.args, indent + 2);
-        sb_pad_left(&sb, indent + 1);
+        // sb_pad_left(&sb, indent + 1);
     }
+    sb_pad_left(&sb, indent + 1);
     sb_append_cstr(&sb, ")\n");
 
     sb_pad_left(&sb, indent + 1);
@@ -1241,13 +1247,11 @@ char *to_string_array(Array array, int indent) {
     sb_pad_left(&sb, indent);
     sb_append_cstr(&sb, "Array(");
     if (array.elements.count > 0) {
-        sb_append_cstr(&sb, "\n");
+        // sb_append_cstr(&sb, "\n");
         sb_body_to_string(&sb, array.elements, indent + 1);
         sb_append_cstr(&sb, "\n");
     }
     sb_pad_left(&sb, indent);
-    sb_append_cstr(&sb, ")\n");
-
     sb_append_null(&sb);
     return arena_strdup(&a, sb.items);
 }
@@ -1284,6 +1288,8 @@ char *to_string_array_insert(Array_Insert insert, int indent) {
     sb_pad_left(&sb, indent + 1);
     sb_append_cstr(&sb, "index: \n");
     sb_appendf(&sb, "%s\n", to_string_expression(insert.index, indent + 2));
+
+    sb_pad_left(&sb, indent + 1);
     sb_append_cstr(&sb, "value: (\n");
     sb_appendf(&sb, "%s\n", to_string_expression(insert.exp, indent + 2));
     sb_pad_left(&sb, indent + 1);
@@ -1369,6 +1375,21 @@ void internal_errorf(Position pos, const char *fmt_str, ...) {
     exit(1);
 }
 
+char *to_string_ast(Ast ast, int indent){
+    String_Builder sb = {0};
+
+    sb_pad_left(&sb, indent - 1);
+    sb_append_cstr(&sb, "Ast(\n");
+    nob_da_foreach(Expression *, expr, &ast) {
+        sb_appendf(&sb, "%s\n", to_string_expression( *expr, indent));
+    }
+    sb_pad_left(&sb, indent - 1);
+    sb_append_cstr(&sb, ")\n");
+    sb_append_null(&sb);
+
+    return arena_strdup(&a, sb.items);
+}
+
 // TODO: expression_to_value_string and identifier_to_value_string
 // require the interpreter's Environment type - stub for now
 
@@ -1439,6 +1460,7 @@ Precedence token_precedence(Parser *p) {
         case LEXER_IF: 
         case LEXER_TRUE: 
         case LEXER_FALSE:
+        case LEXER_SIZE: 
         case LEXER_SHELL: 
         case LEXER_IDENT: 
         case LEXER_STRING: 
@@ -1542,6 +1564,7 @@ Expression *parse_fn_decl(Parser *p) {
     return create_expression(VAL_FUNCTION, (Value_Type){ .function = fn }, pos);
 }
 
+// TODO: Fix Runaway error if missing ) at end 
 Expressions parse_fn_params(Parser *p) {
     Expressions params = {0};
 
@@ -1559,8 +1582,9 @@ Expressions parse_fn_params(Parser *p) {
                     to_string_pos(curr_tok(p).pos, 0));
             assert(false);
         }
-        Expression *exp = parse_expression(p);
-        arena_da_append(&a,&params, exp);
+
+        Expression *expr = parse_expression(p);
+        arena_da_append(&a,&params, expr);
         count += 1;
     }
 
@@ -1988,12 +2012,21 @@ Expression *parse_binop(Parser *p, Expression *left) {
 
 bool has_infix_parser(Lexer_Kind kind) {
     switch (kind) {
-        case LEXER_PLUS: case LEXER_MINUS: case LEXER_MULTIPLY: case LEXER_DIVIDE:
-        case LEXER_MOD: case LEXER_SAME: case LEXER_LT: case LEXER_GT:
+        case LEXER_PLUS: 
+        case LEXER_MINUS: 
+        case LEXER_MULTIPLY: 
+        case LEXER_DIVIDE:
+        case LEXER_MOD: 
+        case LEXER_SAME: 
+        case LEXER_LT: 
+        case LEXER_GT: 
             return true;
         default:
             return false;
     }
+
+    assert(false && "UNREACHABLE");
+    return false;
 }
 
 Expression *parse_precedence(Parser *p, Precedence precedence) {
@@ -2040,6 +2073,7 @@ Expression *parse_prefix(Parser *p) {
 
         case LEXER_PRINT:
         case LEXER_SHELL:
+        case LEXER_SIZE:
             return parse_fn_call(p);
 
         case LEXER_RPAREN:
@@ -2053,6 +2087,7 @@ Expression *parse_prefix(Parser *p) {
             assert(false);
             break;
         default:
+            // fprintf(stderr, "[Ast] :\n%s", to_string_ast(ast, 1));
             fprintf(stderr, "%s Error: unknown prefix expression %s\n",
                     to_string_pos(pos, 0), to_string_kind(curr.kind));
             assert(false);
@@ -2063,12 +2098,13 @@ Expression *parse_prefix(Parser *p) {
     return NULL;
 }
 
+
 Expression *parse_expression(Parser *p) {
     return parse_precedence(p, PRECEDENCE_LOWEST);
 }
 
 Ast parse(Parser *p) {
-    Ast ast = {0};
+    // Ast ast = {0};
 
     next_tok(p);
 
@@ -2574,6 +2610,37 @@ Literal_Value eval_function(Environment *env, Expression *node) {
     return make_function(node->value.function, env);
 }
 
+Literal_Value eval_size(Environment *env, Function_Call function_call) {
+    if (function_call.params.count > 1) {
+        runtime_errorf(
+            function_call.pos, 
+            "size expects one argument, passed %zu", 
+            function_call.params.count
+        );
+
+    }
+    Literal_Value literal_node =  eval(env ,function_call.params.items[0]);
+    switch (literal_node.kind) {
+            case LIT_NUMBER:
+                return make_number_int((int64_t)sizeof(literal_node.value.number));
+            case LIT_STRING:
+                return make_number_int((int64_t)strlen(literal_node.value.string));
+            case LIT_BOOL:
+                return make_number_int((int64_t)sizeof(bool));
+            case LIT_ARRAY_LITERAL:
+                return make_number_int((int64_t)(literal_node.value.array_literal.count));
+            default:
+                runtime_errorf(
+                    function_call.pos, 
+                    "Expected Number String or Bool or Array found %s", 
+                    to_string_literal(&literal_node, 0)
+                );
+
+    }
+    UNREACHABLE("Leak in Literal node");
+    return make_bool(false);
+}
+
 Literal_Value eval_function_call(Environment *env, Expression *node) {
     Function_Call function_call = node->value.function_call;
     Expressions params = function_call.params;
@@ -2586,6 +2653,9 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
         }
         printf("\n");
         return make_bool(true);
+    }
+    if (strcmp(name, "size") == 0) {
+        return eval_size(env, function_call);
     }
 
     if (strcmp(name, "shell") == 0) {

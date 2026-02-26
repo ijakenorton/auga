@@ -19,14 +19,33 @@ let print_board = fn board {
     }
 }
 
+let centered_text_line = fn text width fill_char {
+    let midpoint = width/2  + 1
+    let text_len = size(text)
+    let first_half_len = midpoint - text_len/2
+    let line = []
+
+    for let i = 0 .. i < first_half_len .. i + 1 {
+        line[i] = fill_char
+    }
+    line[first_half_len] = text
+
+    for let i = first_half_len + 1 .. i < width - text_len/2 .. i + 1 {
+        line[i] = fill_char
+    }
+
+    return line
+}
+
 let main = fn {
-    let board = init_board("1")
-    let backboard = init_board("0")
-    print("board == backboard: " board == backboard)
+    let board = init_board(0)
+    let backboard = init_board(0)
+    print(centered_text_line("BOARD" columns "*"))
     print_board(board)
+
+    print(centered_text_line("BACKBOARD" columns "*"))
     print_board(backboard)
 }
 
-while true {
-    main()
-}
+
+main()
