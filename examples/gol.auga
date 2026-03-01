@@ -1,5 +1,7 @@
 let rows = 8*8
 let columns = 8*8
+let ROW = 0
+let COL = 1
 
 let init_board = fn value {
     let board = []
@@ -37,14 +39,85 @@ let centered_text_line = fn text width fill_char {
     return line
 }
 
+let handle_overflow = fn val max {
+    if val == max { return val - max }
+    if val > max {
+        return val - max
+    }
+    if val < 0 {
+        return max + val
+    }
+    return val
+}
+
+let board_index = fn row col {
+    return [handle_overflow(row rows) handle_overflow(col columns)]
+}
+
+let get_neighbours = fn board row col {
+    let neighbours = []
+    let kernel = [
+        [row - 1 col - 1] 
+        [row - 1 col]
+        [row - 1 col + 1]
+
+        [row col - 1]
+        [row col + 1]
+
+        [row + 1 col - 1]
+        [row + 1 col]    
+        [row + 1 col + 1]
+    ]
+    let index = 0
+    let start = row - 1
+    let end = row + 1
+    let kernel_size = size(kernel)
+    print(kernel)
+    for let c = 0 .. c < size(kernel) .. c + 1 {
+        let cell_index = kernel[c]
+        let cell = board_index(cell_index[ROW] cell_index[COL])
+
+        // print(centered_text_line("start" columns "*"))
+        // print("cell_index = " cell_index)
+        // print("cell = " cell)
+        // print(centered_text_line("end" columns "*"))
+
+        let board_row = board[cell[ROW]]
+        
+        neighbours[c] = board_row[cell[COL]]
+    }
+
+    return neighbours
+}
+
+let alive = fn neighbours {
+    let count = [0]
+    for let cell = 0 .. cell < size(neighbours) .. cell + 1 {
+       if neighbours[cell] == 1 {
+           count[0] = count[0] + 1
+       }
+    }
+    return count
+}
+
 let main = fn {
     let board = init_board(0)
     let backboard = init_board(0)
+    let row = board[0]
+    row[0] = 1
+    row[1] = 1
+    row[2] = 1
+    row[3] = 1
+    board[0] = row
     print(centered_text_line("BOARD" columns "*"))
     print_board(board)
-
     print(centered_text_line("BACKBOARD" columns "*"))
-    print_board(backboard)
+    // print_board(backboard)
+
+    let neighbours = get_neighbours(board 1 1)
+    print("neighbours = " neighbours)
+    print(alive(neighbours))
+
 }
 
 
