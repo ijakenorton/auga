@@ -381,11 +381,15 @@ Token lex_number(Lexer* l) {
     char curr = curr_char(l);
     assert((curr == '.' || numeric(curr)) && "lexing error");
     String_Builder tok = {0};
-    bool has_dot = false;
+    size_t has_dot = false;
 
     //take_while
     while (curr == '.' || numeric(curr)) {
         if (curr == '.') {
+            char next = peek_char(l);
+            if (next == '.' || !numeric(curr)) {
+                break;
+            }
             has_dot = true;
         }
         sb_append(&tok, curr);
@@ -402,7 +406,7 @@ Token lex_number(Lexer* l) {
 
 
     char *lit = arena_strdup(&a, tok.items);
-    Lexer_Kind kind = has_dot ? LEXER_FLOAT64 : LEXER_INT64;
+    Lexer_Kind kind = has_dot > 0 ? LEXER_FLOAT64 : LEXER_INT64;
 
     sb_free(tok);
     return (Token){
@@ -2087,7 +2091,7 @@ Expression *parse_prefix(Parser *p) {
             assert(false);
             break;
         default:
-            // fprintf(stderr, "[Ast] :\n%s", to_string_ast(ast, 1));
+            fprintf(stderr, "[Ast] :\n%s", to_string_ast(ast, 1));
             fprintf(stderr, "%s Error: unknown prefix expression %s\n",
                     to_string_pos(pos, 0), to_string_kind(curr.kind));
             assert(false);
@@ -2427,6 +2431,7 @@ Literal_Value eval_identifier(Environment *env, Expression *node) {
 Literal_Value eval_binding(Environment *env, Expression *node) {
     Binding binding = node->value.binding;
     Literal_Value result = eval(env, binding.value);
+    printf("%s %s\n", binding.name, to_string_literal(&result, 0));
     // Unwrap return values at binding site (e.g. let val = if ... { return x })
     if (result.kind == LIT_RETURN_VALUE) {
         result = *result.value.return_value.value;
@@ -2532,13 +2537,14 @@ Literal_Value eval_while(Environment *env, Expression *node) {
     Environment *new_env = env_create(env);
 
     for (;;) {
+        new_env->count = 0;
         bool cond_bool;
         if (while_node.cond == NULL) {
             cond_bool = true;
         } else {
-            Literal_Value cond = eval(new_env, while_node.cond);
+            Literal_Value cond = eval(env, while_node.cond);
             if (cond.kind != LIT_BOOL) {
-                runtime_errorf(node->pos, "Expected bool in while condition");
+                runtime_errorf(node->pos, "Expected bool expression in while condition");
             }
             cond_bool = cond.value.boolean;
         }
@@ -2565,11 +2571,12 @@ Literal_Value eval_for(Environment *env, Expression *node) {
     Environment *new_env = env_create(env);
 
     for (;;) {
+        new_env->count = 0;
         bool cond_bool;
         if (for_node.cond == NULL) {
             cond_bool = true;
         } else {
-            Literal_Value cond = eval(new_env, for_node.cond);
+            Literal_Value cond = eval(env, for_node.cond);
             if (cond.kind != LIT_BOOL) {
                 runtime_errorf(node->pos, "Expected bool in for condition");
             }
@@ -2583,7 +2590,7 @@ Literal_Value eval_for(Environment *env, Expression *node) {
         }
 
         // Update expression (e.g. i + 1)
-        Literal_Value update_val = eval(new_env, for_node.update_exp);
+        Literal_Value update_val = eval(env, for_node.update_exp);
         env_set(env, binding.name, update_val);
     }
 
@@ -2703,7 +2710,6 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
         return make_array_literal(result_array);
 
 #endif /* ifdef _WIN32 */
-
         TODO("shell not implemented for windows yet");
     }
 
@@ -2718,6 +2724,10 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
 
     Function fn = var.value.value.function;
     Environment *new_env = env_create(fn.closure_env ? fn.closure_env : env);
+
+    if (params.count != fn.args.count) {
+        runtime_errorf(node->pos, "Expected %zu parameters got %zu", fn.args.count, params.count);
+    }
 
     for (size_t i = 0; i < params.count; ++i) {
         Literal_Value param_value = eval(env, params.items[i]);
