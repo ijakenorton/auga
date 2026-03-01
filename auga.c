@@ -2431,7 +2431,7 @@ Literal_Value eval_identifier(Environment *env, Expression *node) {
 Literal_Value eval_binding(Environment *env, Expression *node) {
     Binding binding = node->value.binding;
     Literal_Value result = eval(env, binding.value);
-    printf("%s %s\n", binding.name, to_string_literal(&result, 0));
+    // printf("%s %s\n", binding.name, to_string_literal(&result, 0));
     // Unwrap return values at binding site (e.g. let val = if ... { return x })
     if (result.kind == LIT_RETURN_VALUE) {
         result = *result.value.return_value.value;
