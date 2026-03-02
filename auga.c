@@ -319,11 +319,36 @@ Token lex_string(Lexer* l) {
     }
 
     String_Builder tok = {0};
-    //take_while exclusive
-    //TODO: Add support for escaping strings
     for (;;) {
+        char c = curr_char(l);
 
-        sb_append(&tok, curr_char(l));
+        if (c == '\\') {
+            if (!next_char(l)) break;
+            char esc = curr_char(l);
+            if (esc >= '0' && esc <= '7') {
+                // Octal escape e.g. \033
+                int val = esc - '0';
+                for (int i = 0; i < 2; i++) {
+                    if (!next_char(l)) break;
+                    char d = curr_char(l);
+                    if (d < '0' || d > '7') break;
+                    val = val * 8 + (d - '0');
+                }
+                sb_append(&tok, (char)val);
+            } else {
+                switch (esc) {
+                    case 'n':  sb_append(&tok, '\n'); break;
+                    case 't':  sb_append(&tok, '\t'); break;
+                    case 'r':  sb_append(&tok, '\r'); break;
+                    case 'e':  sb_append(&tok, '\033'); break;
+                    case '\\': sb_append(&tok, '\\'); break;
+                    case '"':  sb_append(&tok, '"'); break;
+                    default:   sb_append(&tok, esc); break;
+                }
+            }
+        } else {
+            sb_append(&tok, c);
+        }
 
         if (!next_char(l)) {
             break;
