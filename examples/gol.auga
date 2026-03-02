@@ -16,6 +16,8 @@ let init_board = fn value {
 }
 
 let print_board = fn board {
+
+    print("\033[2J")
     for let row = 0 .. row < rows .. row + 1 {
         print(board[row])
     }
@@ -26,6 +28,7 @@ let centered_text_line = fn text width fill_char {
     let text_len = size(text)
     let first_half_len = midpoint - text_len/2
     let line = []
+
 
     for let i = 0 .. i < first_half_len .. i + 1 {
         line[i] = fill_char
@@ -54,10 +57,10 @@ let board_index = fn row col {
     return [handle_overflow(row rows) handle_overflow(col columns)]
 }
 
-let get_neighbours = fn board row col {
+let get_neighbours_old = fn board row col {
     let neighbours = []
     let kernel = [
-        [row - 1 col - 1] 
+        [row - 1 col - 1]
         [row - 1 col]
         [row - 1 col + 1]
 
@@ -65,59 +68,132 @@ let get_neighbours = fn board row col {
         [row col + 1]
 
         [row + 1 col - 1]
-        [row + 1 col]    
+        [row + 1 col]
         [row + 1 col + 1]
+
+        [row col]
     ]
     let index = 0
     let start = row - 1
     let end = row + 1
     let kernel_size = size(kernel)
-    print(kernel)
+    // print(kernel)
     for let c = 0 .. c < size(kernel) .. c + 1 {
         let cell_index = kernel[c]
         let cell = board_index(cell_index[ROW] cell_index[COL])
-
-        // print(centered_text_line("start" columns "*"))
-        // print("cell_index = " cell_index)
-        // print("cell = " cell)
-        // print(centered_text_line("end" columns "*"))
-
         let board_row = board[cell[ROW]]
-        
         neighbours[c] = board_row[cell[COL]]
     }
 
     return neighbours
 }
+  let get_neighbours = fn board row col {
+      let neighbours = []
+      let r0 = handle_overflow(row - 1 rows)
+      let r1 = handle_overflow(row + 1 rows)
+      let c0 = handle_overflow(col - 1 columns)
+      let c1 = handle_overflow(col + 1 columns)
+
+      let above = board[r0]
+      let same  = board[row]
+      let below = board[r1]
+
+      neighbours[0] = above[c0]
+      neighbours[1] = above[col]
+      neighbours[2] = above[c1]
+      neighbours[3] = same[c0]
+      neighbours[4] = same[c1]
+      neighbours[5] = below[c0]
+      neighbours[6] = below[col]
+      neighbours[7] = below[c1]
+      neighbours[8] = same[col]
+
+      return neighbours
+  }
 
 let alive = fn neighbours {
     let count = [0]
-    for let cell = 0 .. cell < size(neighbours) .. cell + 1 {
-       if neighbours[cell] == 1 {
+    for let cell = 0 .. cell < size(neighbours) - 1 .. cell + 1 {
+       if neighbours[cell] == "@" {
            count[0] = count[0] + 1
        }
     }
-    return count
+
+    let current = neighbours[8]
+
+    if current == "@" {
+        if count[0] == 2 { return "@" }
+        if count[0] == 3 { return "@" }
+        return "."
+    }
+
+    if count[0] == 3 { return "@" }
+    return "."
+}
+
+let blankboard = init_board(".")
+
+let step = fn board {
+    let backboard = board
+    let board = init_board(".")
+
+    for let i = 0..i < size(board[0])..i + 1 {
+        let front_row = []
+        for let j = 0..j < size(board[i])..j + 1 {
+            front_row[j] = alive(get_neighbours(backboard i j))
+        }
+        board[i] = front_row
+    }
+    print_board(board)
+    return board
+}
+
+let glider = fn board origin_row origin_col {
+    let row = board[handle_overflow(origin_row - 2 rows)]
+    row[origin_col] = "@"
+
+    let row = board[handle_overflow(origin_row - 1 rows)]
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+
+    let row = board[handle_overflow(origin_row rows)]
+    row[handle_overflow(origin_col - 1 columns)] = "@"
+    row[handle_overflow(origin_col columns)] = "@"
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+    return board
+}
+
+let acorn = fn board origin_row origin_col {
+    let row = board[handle_overflow(origin_row - 2 rows)]
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+
+    let row = board[handle_overflow(origin_row - 1 rows)]
+    row[handle_overflow(origin_col + 3 columns)] = "@"
+
+    let row = board[handle_overflow(origin_row rows)]
+    row[handle_overflow(origin_col columns)] = "@"
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+    row[handle_overflow(origin_col + 4 columns)] = "@"
+    row[handle_overflow(origin_col + 5 columns)] = "@"
+    row[handle_overflow(origin_col + 6 columns)] = "@"
+    return board
 }
 
 let main = fn {
-    let board = init_board(0)
-    let backboard = init_board(0)
-    let row = board[0]
-    row[0] = 1
-    row[1] = 1
-    row[2] = 1
-    row[3] = 1
-    board[0] = row
-    print(centered_text_line("BOARD" columns "*"))
+    let board = init_board(".")
+    let backboard = init_board(".")
+    let board = glider(board rows/4 columns/4)
+    let board = glider(board handle_overflow(0 rows) handle_overflow(0 columns))
+    let board = glider(board handle_overflow(rows/2 rows) handle_overflow(0 columns))
+    let board = glider(board handle_overflow(0 rows) handle_overflow(columns/2 columns))
+    let board = acorn(board rows/2 columns/2)
     print_board(board)
-    print(centered_text_line("BACKBOARD" columns "*"))
-    // print_board(backboard)
 
-    let neighbours = get_neighbours(board 1 1)
-    print("neighbours = " neighbours)
-    print(alive(neighbours))
+    let state = [board]
 
+    while true {
+        for let i = 0..i<10..i + 1 {}
+        state[0] = step(state[0])
+    }
 }
 
 
