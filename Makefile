@@ -1,3 +1,5 @@
+auga.exe: auga.c
+	./nob -run
 auga: *.odin
 	odin build .
 
