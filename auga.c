@@ -10,7 +10,8 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
-static Arena a = {0};
+static Arena a = {0};    // scratch: function temporaries, rewound after each call
+static Arena perm = {0}; // permanent: array return values that outlive their call
 /*
 //================================================================================\\
 //CONSTANTS_START
@@ -2410,6 +2411,7 @@ bool eval_same(Literal_Value left, Literal_Value right) {
 // --- Forward declarations for mutually recursive eval ---
 Literal_Value eval(Environment *env, Expression *node);
 Literal_Value eval_block(Environment *env, Expressions exps);
+Literal_Value literal_value_deep_copy(Literal_Value v);
 
 // --- Eval helpers ---
 
@@ -2525,8 +2527,18 @@ Literal_Value eval_binop(Environment *env, Expression *node) {
         case BINOP_MOD: {
             if (left.kind != LIT_NUMBER) runtime_errorf(node->pos, "Expected Number for '%%', got non-number");
             if (right.kind != LIT_NUMBER) runtime_errorf(node->pos, "Expected Number for '%%', got non-number");
-            if (left.value.number.kind == NUMBER_FLOAT) runtime_errorf(node->pos, "Operator '%%' is only allowed with integers, got float64");
-            if (right.value.number.kind == NUMBER_FLOAT) runtime_errorf(node->pos, "Operator '%%' is only allowed with integers, got float64");
+            if (left.value.number.kind == NUMBER_FLOAT) {
+                runtime_errorf(
+                    node->pos, 
+                    "Operator '%%' is only allowed with integers, got float64"
+                );
+            }
+            if (right.value.number.kind == NUMBER_FLOAT) {
+                runtime_errorf(
+                    node->pos, 
+                    "Operator '%%' is only allowed with integers, got float64"
+                );
+            }
             return make_number_int(left.value.number.i % right.value.number.i);
         }
     }
@@ -2542,7 +2554,7 @@ Literal_Value eval_if(Environment *env, Expression *node) {
     Literal_Value cond = eval(env, if_node.cond);
 
     if (cond.kind != LIT_BOOL) {
-        runtime_errorf(node->pos, "Expected bool in if condition");
+        runtime_errorf(if_node.pos, "Expected bool in if condition");
     }
 
     Literal_Value result = make_bool(false);
@@ -2569,7 +2581,7 @@ Literal_Value eval_while(Environment *env, Expression *node) {
         } else {
             Literal_Value cond = eval(env, while_node.cond);
             if (cond.kind != LIT_BOOL) {
-                runtime_errorf(node->pos, "Expected bool expression in while condition");
+                runtime_errorf(while_node.pos, "Expected bool expression in while condition");
             }
             cond_bool = cond.value.boolean;
         }
@@ -2748,6 +2760,8 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
     }
 
     Function fn = var.value.value.function;
+
+    Arena_Mark mark = arena_snapshot(&a);
     Environment *new_env = env_create(fn.closure_env ? fn.closure_env : env);
 
     if (params.count != fn.args.count) {
@@ -2761,11 +2775,27 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
     }
 
     Literal_Value result = eval_block(new_env, fn.value);
-    // Unwrap return value at function boundary
     if (result.kind == LIT_RETURN_VALUE) {
-        return *result.value.return_value.value;
+        result = *result.value.return_value.value;
     }
+    // Copy array returns to perm before rewinding scratch
+    if (result.kind == LIT_ARRAY_LITERAL) {
+        result = literal_value_deep_copy(result);
+    }
+    arena_rewind(&a, mark);
     return result;
+}
+
+Literal_Value literal_value_deep_copy(Literal_Value v) {
+    if (v.kind != LIT_ARRAY_LITERAL) return v;
+    Array_Literal src = v.value.array_literal;
+    Array_Literal dst = {0};
+    dst.pos = src.pos;
+    for (size_t i = 0; i < src.count; i++) {
+        Literal_Value elem = literal_value_deep_copy(src.items[i]);
+        arena_da_append(&perm, &dst, elem);
+    }
+    return make_array_literal(dst);
 }
 
 // --- Arrays ---
@@ -2795,8 +2825,16 @@ int64_t to_array_index(Array_Literal array, Number index) {
     return idx;
 }
 
-Literal_Value eval_array_index(Array_Literal array, Number index) {
-    int64_t idx = to_array_index(array, index);
+Literal_Value eval_array_index(Array_Literal array, Number index, Position access_pos) {
+    int64_t idx;
+    if (index.kind == NUMBER_INT) {
+        idx = index.i;
+    } else {
+        idx = (int64_t)index.f;
+    }
+    if (idx < 0 || (size_t)idx >= array.count) {
+        runtime_errorf(access_pos, "Array index %lld out of bounds (length %zu)", (long long)idx, array.count);
+    }
 
     return array.items[idx];
 }
@@ -2806,18 +2844,18 @@ Literal_Value eval_array_access(Environment *env, Expression *node) {
 
     Env_Result arr_result = env_get(env, access.name);
     if (!arr_result.found) {
-        runtime_errorf(node->pos, "Var: %s, is undefined in the current scope", access.name);
+        runtime_errorf(access.pos, "Var: %s, is undefined in the current scope", access.name);
     }
     if (arr_result.value.kind != LIT_ARRAY_LITERAL) {
-        runtime_errorf(node->pos, "Var: %s, is not an array", access.name);
+        runtime_errorf(access.pos, "Var: %s, is not an array", access.name);
     }
 
     Literal_Value index_val = eval(env, access.index);
     if (index_val.kind != LIT_NUMBER) {
-        runtime_errorf(node->pos, "Array index must be a number");
+        runtime_errorf(access.pos, "Array index must be a number");
     }
 
-    return eval_array_index(arr_result.value.value.array_literal, index_val.value.number);
+    return eval_array_index(arr_result.value.value.array_literal, index_val.value.number, access.pos);
 }
 
 Literal_Value eval_array_insert(Environment *env, Expression *node) {
@@ -2825,17 +2863,17 @@ Literal_Value eval_array_insert(Environment *env, Expression *node) {
 
     Env_Result arr_result = env_get(env, insert.name);
     if (!arr_result.found) {
-        runtime_errorf(node->pos, "Var: %s, is undefined in the current scope", insert.name);
+        runtime_errorf(insert.pos, "Var: %s, is undefined in the current scope", insert.name);
     }
 
     if (arr_result.value.kind != LIT_ARRAY_LITERAL) {
-        runtime_errorf(node->pos, "Var: %s, is not an array", insert.name);
+        runtime_errorf(insert.pos, "Var: %s, is not an array", insert.name);
     }
     Array_Literal array = arr_result.value.value.array_literal;
 
     Literal_Value index_val = eval(env, insert.index);
     if (index_val.kind != LIT_NUMBER) {
-        runtime_errorf(node->pos, "Array index must be a number");
+        runtime_errorf(insert.pos, "Array index must be a number");
     }
     Number index = index_val.value.number;
 
