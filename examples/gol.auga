@@ -133,19 +133,13 @@ let alive = fn neighbours {
 
 let blankboard = init_board(".")
 
-let step = fn board {
-    let backboard = board
-    let board = init_board(".")
-
-    for let i = 0..i < size(board[0])..i + 1 {
-        let front_row = []
-        for let j = 0..j < size(board[i])..j + 1 {
+let step = fn backboard board {
+    for let i = 0..i < rows..i + 1 {
+        let front_row = board[i]
+        for let j = 0..j < columns..j + 1 {
             front_row[j] = alive(get_neighbours(backboard i j))
         }
-        board[i] = front_row
     }
-    print_board(board)
-    return board
 }
 
 let glider = fn board origin_row origin_col {
@@ -186,13 +180,14 @@ let main = fn {
     let board = glider(board handle_overflow(rows/2 rows) handle_overflow(0 columns))
     let board = glider(board handle_overflow(0 rows) handle_overflow(columns/2 columns))
     let board = acorn(board rows/2 columns/2)
-    print_board(board)
 
-    let state = [board]
+    let boards = [board backboard]
 
     while true {
-        for let i = 0..i<10..i + 1 {}
-        state[0] = step(state[0])
+        step(boards[0] boards[1])
+        print_board(boards[1])
+        step(boards[1] boards[0])
+        print_board(boards[0])
     }
 }
 
