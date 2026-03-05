@@ -16,11 +16,12 @@ let init_board = fn value {
 }
 
 let print_board = fn board {
-
     print("\033[2J")
-    for let row = 0 .. row < rows .. row + 1 {
-        print(board[row])
-    }
+    print(board)
+    // for let row = 0 .. row < rows .. row + 1 {
+    //     print(board[row])
+    //     wait(10000000)
+    // }
 }
 
 let centered_text_line = fn text width fill_char {
@@ -128,7 +129,7 @@ let alive = fn neighbours {
     }
 
     if count[0] == 3 { return "@" }
-    return "."
+    return " "
 }
 
 let blankboard = init_board(".")
@@ -172,6 +173,11 @@ let acorn = fn board origin_row origin_col {
     return board
 }
 
+let wait = fn iter {
+    for let i = 0..i<iter..i + 1 {
+    }
+}
+
 let main = fn {
     let board = init_board(".")
     let backboard = init_board(".")
@@ -186,8 +192,10 @@ let main = fn {
     while true {
         step(boards[0] boards[1])
         print_board(boards[1])
+        wait(100)
         step(boards[1] boards[0])
         print_board(boards[0])
+        wait(100)
     }
 }
 
