@@ -858,6 +858,7 @@ typedef enum {
     VAL_EXPRESSION,
     VAL_BINOP,
     VAL_BINDING,
+    VAL_ASSIGN,
     VAL_IDENTIFIER,
     VAL_FUNCTION,
     VAL_FUNCTION_CALL,
@@ -1356,6 +1357,7 @@ char *to_string_expression(Expression *expr, int indent) {
     switch (expr->kind) {
         case VAL_EXPRESSION:    return to_string_expression(expr->value.expression, indent);
         case VAL_BINDING:       return to_string_binding(expr->value.binding, indent);
+        case VAL_ASSIGN:        return to_string_binding(expr->value.binding, indent);
         case VAL_LITERAL_NODE:  return to_string_literal_node(expr->value.literal_node, indent);
         case VAL_IDENTIFIER:    return to_string_identifier(expr->value.identifier, indent);
         case VAL_BINOP:         return to_string_binop(expr->value.binop, indent);
@@ -1446,7 +1448,6 @@ Token peek_tok(Parser *p) {
 }
 
 bool next_tok(Parser *p) {
-
     // puts(to_string_token(curr_tok(p), 0));
     if (peek_tok(p).kind == LEXER_EOF) {
         return false;
@@ -1903,6 +1904,29 @@ Expression *parse_return_expr(Parser *p) {
     return create_expression(VAL_RETURN, (Value_Type){ .returnn = returnn }, pos);
 }
 
+Expression *parse_assign(Parser *p) {
+    Token curr = curr_tok(p);
+    Position pos = curr.pos;
+    char *name = curr.literal;
+
+    next_and_expect(p, LEXER_EQUALS);
+
+    if (!next_tok(p)) {
+        fprintf(stderr, "%s Error: Unexpected EOF after EQUALS\n", to_string_pos(curr.pos, 0));
+        assert(false);
+    }
+
+    Expression *exp = parse_expression(p);
+
+    Binding binding = {
+        .name = name,
+        .value = exp,
+        .pos = pos,
+    };
+
+    return create_expression(VAL_ASSIGN, (Value_Type){ .binding = binding }, pos);
+}
+
 Expression *parse_let(Parser *p) {
     Token curr = curr_tok(p);
     Position pos = curr.pos;
@@ -2097,6 +2121,9 @@ Expression *parse_prefix(Parser *p) {
             }
             if (expect_peek(p, LEXER_LBLOCK)) {
                 return parse_array_access(p);
+            }
+            if (expect_peek(p, LEXER_EQUALS)) {
+                return parse_assign(p);
             }
             return parse_identifier_expr(p);
         }
@@ -2468,6 +2495,20 @@ Literal_Value eval_binding(Environment *env, Expression *node) {
         result.value.function.closure_env = env;
     }
     env_set(env, binding.name, result);
+    return result;
+}
+
+Literal_Value eval_assign(Environment *env, Expression *node) {
+    Binding binding = node->value.binding;
+    Env_Result existing = env_get(env, binding.name);
+    if (!existing.found) {
+        runtime_errorf(node->pos, "Var: %s is not defined. Use `let` to declare new variables", binding.name);
+    }
+    Literal_Value result = eval(env, binding.value);
+    if (result.kind == LIT_RETURN_VALUE) {
+        result = *result.value.return_value.value;
+    }
+    env_set_existing(env, binding.name, result);
     return result;
 }
 
@@ -2911,6 +2952,7 @@ Literal_Value eval(Environment *env, Expression *node) {
         case VAL_LITERAL_NODE:  return eval_literal(env, node);
         case VAL_IDENTIFIER:    return eval_identifier(env, node);
         case VAL_BINDING:       return eval_binding(env, node);
+        case VAL_ASSIGN:        return eval_assign(env, node);
         case VAL_FUNCTION:      return eval_function(env, node);
         case VAL_ARRAY:         return eval_array(env, node);
         case VAL_FUNCTION_CALL: return eval_function_call(env, node);
