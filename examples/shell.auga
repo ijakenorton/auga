@@ -1,15 +1,7 @@
-let output = shell("echo hello from shell ")
+print("Building Auga")
+let output = shell("cc -o build/generatedauga auga.c")
 let stdout = output[0]
 let stderr = output[1] 
 let return_code = output[2]
-print(stdout)
-print(stderr)
-print("exit code: " return_code)
-
-let output = shell("gcc")
-let stdout = output[0]
-let stderr = output[1] 
-let return_code = output[2]
-print(stdout)
-print(stderr)
-print("exit code: " return_code)
+print(stdout stderr)
+return return_code

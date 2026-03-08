@@ -5,6 +5,14 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdlib.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#undef ERROR
+#else
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 #define RINGBUF_IMPLEMENTATION
@@ -332,6 +340,8 @@ Token lex_string(Lexer* l) {
     for (;;) {
         char c = curr_char(l);
 
+        if (c == '"') break;
+
         if (c == '\\') {
             if (!next_char(l)) break;
             char esc = curr_char(l);
@@ -360,13 +370,7 @@ Token lex_string(Lexer* l) {
             sb_append(&tok, c);
         }
 
-        if (!next_char(l)) {
-            break;
-        }
-
-        if (curr_char(l) == '\"') {
-            break;
-        }
+        if (!next_char(l)) break;
     }
     
     sb_append_null(&tok);
@@ -2554,6 +2558,15 @@ Literal_Value eval_binop(Environment *env, Expression *node) {
             return make_bool(eval_gt(left.value.number, right.value.number));
         }
         case BINOP_PLUS: {
+            if (left.kind == LIT_STRING || right.kind == LIT_STRING) {
+                const char *l = literal_value_to_print_string(left);
+                const char *r = literal_value_to_print_string(right);
+                size_t len = strlen(l) + strlen(r) + 1;
+                char *buf = arena_alloc(&a, len);
+                memcpy(buf, l, strlen(l));
+                memcpy(buf + strlen(l), r, strlen(r) + 1);
+                return make_string(buf);
+            }
             if (left.kind != LIT_NUMBER) runtime_errorf(node->pos, "Expected Number for '+', got non-number");
             if (right.kind != LIT_NUMBER) runtime_errorf(node->pos, "Expected Number for '+', got non-number");
             Number r = eval_add(left.value.number, right.value.number);
@@ -2738,6 +2751,99 @@ Literal_Value eval_size(Environment *env, Function_Call function_call) {
     return make_bool(false);
 }
 
+Literal_Value eval_shell(Environment *env, Function_Call function_call, Expression *node) {
+    Expressions params = function_call.params;
+    if (params.count < 1) {
+        runtime_errorf(node->pos, "shell() expects at least 1 argument");
+    }
+
+    Literal_Value command_val = eval(env, params.items[0]);
+    if (command_val.kind != LIT_STRING) {
+        runtime_errorf(node->pos, "shell() expects a string argument");
+    }
+    char *command = command_val.value.string;
+
+    // Run command through the system shell to preserve shell semantics
+    Nob_Cmd cmd = {0};
+#ifdef _WIN32
+    nob_cmd_append(&cmd, "cmd.exe", "/c", command);
+#else
+    nob_cmd_append(&cmd, "sh", "-c", command);
+#endif
+
+    // Pipe stdout for in-memory capture; redirect stderr to temp file to avoid
+    // the two-pipe deadlock (process blocks writing stderr while we're reading stdout)
+    Nob_Pipe stdout_pipe = {0};
+    if (!nob_pipe_create(&stdout_pipe)) {
+        runtime_errorf(node->pos, "shell() failed to create stdout pipe");
+    }
+
+    const char *stderr_path = nob_temp_sprintf("auga_stderr_%p.tmp", (void *)node);
+    Nob_Fd stderr_fd = nob_fd_open_for_write(stderr_path);
+    if (stderr_fd == NOB_INVALID_FD) {
+        runtime_errorf(node->pos, "shell() failed to open stderr temp file");
+    }
+
+    Nob_Proc proc = nob__cmd_start_process(cmd, NULL, &stdout_pipe.write, &stderr_fd);
+    nob_fd_close(stdout_pipe.write);
+    nob_fd_close(stderr_fd);
+
+    if (proc == NOB_INVALID_PROC) {
+        runtime_errorf(node->pos, "shell() failed to start process: %s", command);
+    }
+
+    // Read stdout from pipe
+    Nob_String_Builder stdout_sb = {0};
+    char buf[4096];
+#ifdef _WIN32
+    DWORD bytes_read;
+    while (ReadFile(stdout_pipe.read, buf, sizeof(buf), &bytes_read, NULL) && bytes_read > 0) {
+        nob_sb_append_buf(&stdout_sb, buf, bytes_read);
+    }
+#else
+    ssize_t n;
+    while ((n = read(stdout_pipe.read, buf, sizeof(buf))) > 0) {
+        nob_sb_append_buf(&stdout_sb, buf, (size_t)n);
+    }
+#endif
+    nob_fd_close(stdout_pipe.read);
+
+    // Wait for process and get exit code
+    int exit_code = 0;
+#ifdef _WIN32
+    WaitForSingleObject(proc, INFINITE);
+    DWORD code;
+    GetExitCodeProcess(proc, &code);
+    CloseHandle(proc);
+    exit_code = (int)code;
+#else
+    int wstatus;
+    waitpid(proc, &wstatus, 0);
+    if (WIFEXITED(wstatus)) exit_code = WEXITSTATUS(wstatus);
+#endif
+
+    // Read stderr from temp file
+    Nob_String_Builder stderr_sb = {0};
+    nob_read_entire_file(stderr_path, &stderr_sb);
+    remove(stderr_path);
+
+    nob_sb_append_null(&stdout_sb);
+    nob_sb_append_null(&stderr_sb);
+
+    char *stdout_str = stdout_sb.items ? arena_strdup(&a, stdout_sb.items) : arena_strdup(&a, "");
+    char *stderr_str = stderr_sb.items ? arena_strdup(&a, stderr_sb.items) : arena_strdup(&a, "");
+    nob_sb_free(stdout_sb);
+    nob_sb_free(stderr_sb);
+
+    Array_Literal result_array = {0};
+    arena_da_append(&a, &result_array, make_string(stdout_str));
+    arena_da_append(&a, &result_array, make_string(stderr_str));
+    arena_da_append(&a, &result_array, make_number_int((int64_t)exit_code));
+    result_array.pos = node->pos;
+
+    return make_array_literal(result_array);
+}
+
 Literal_Value eval_function_call(Environment *env, Expression *node) {
     Function_Call function_call = node->value.function_call;
     Expressions params = function_call.params;
@@ -2754,53 +2860,92 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
     if (strcmp(name, "size") == 0) {
         return eval_size(env, function_call);
     }
+    if (strcmp(name, "terminal_size") == 0) {
+        int rows = 24, cols = 80;
+#ifdef _WIN32
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
+            cols = csbi.srWindow.Right  - csbi.srWindow.Left + 1;
+            rows = csbi.srWindow.Bottom - csbi.srWindow.Top  + 1;
+        }
+#else
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+            rows = w.ws_row;
+            cols = w.ws_col;
+        }
+#endif
+        Array_Literal result = {0};
+        arena_da_append(&a, &result, make_number_int((int64_t)rows));
+        arena_da_append(&a, &result, make_number_int((int64_t)cols));
+        return make_array_literal(result);
+    }
+    if (strcmp(name, "int") == 0) {
+        if (function_call.params.count != 1) runtime_errorf(node->pos, "int() expects 1 argument");
+        Literal_Value val = eval(env, function_call.params.items[0]);
+        if (val.kind == LIT_NUMBER) {
+            if (val.value.number.kind == NUMBER_FLOAT)
+                return make_number_int((int64_t)val.value.number.f);
+            return val;
+        }
+        if (val.kind != LIT_STRING) runtime_errorf(node->pos, "int() expects a string or number");
+        char *end;
+        int64_t result = strtoll(val.value.string, &end, 10);
+        if (end == val.value.string) runtime_errorf(node->pos, "int() could not parse \"%s\"", val.value.string);
+        return make_number_int(result);
+    }
+    if (strcmp(name, "float") == 0) {
+        if (function_call.params.count != 1) runtime_errorf(node->pos, "float() expects 1 argument");
+        Literal_Value val = eval(env, function_call.params.items[0]);
+        if (val.kind == LIT_NUMBER) {
+            if (val.value.number.kind == NUMBER_INT)
+                return make_number_float((double)val.value.number.i);
+            return val;
+        }
+        if (val.kind != LIT_STRING) runtime_errorf(node->pos, "float() expects a string or number");
+        char *end;
+        double result = strtod(val.value.string, &end);
+        if (end == val.value.string) runtime_errorf(node->pos, "float() could not parse \"%s\"", val.value.string);
+        return make_number_float(result);
+    }
+    if (strcmp(name, "str") == 0) {
+        if (function_call.params.count != 1) runtime_errorf(node->pos, "str() expects 1 argument");
+        Literal_Value val = eval(env, function_call.params.items[0]);
+        return make_string(arena_strdup(&a, literal_value_to_print_string(val)));
+    }
+    if (strcmp(name, "join") == 0) {
+        if (function_call.params.count != 2) runtime_errorf(node->pos, "join() expects 2 arguments: join(array sep)");
+        Literal_Value arr_val = eval(env, function_call.params.items[0]);
+        Literal_Value sep_val = eval(env, function_call.params.items[1]);
+        if (arr_val.kind != LIT_ARRAY_LITERAL) runtime_errorf(node->pos, "join() first argument must be an array");
+        if (sep_val.kind != LIT_STRING) runtime_errorf(node->pos, "join() second argument must be a string");
+        Array_Literal arr = arr_val.value.array_literal;
+        const char *sep = sep_val.value.string ? sep_val.value.string : "";
+        size_t sep_len = strlen(sep);
+        // Calculate total length
+        size_t total = 0;
+        for (size_t i = 0; i < arr.count; i++) {
+            total += strlen(literal_value_to_print_string(arr.items[i]));
+            if (i + 1 < arr.count) total += sep_len;
+        }
+        char *buf = arena_alloc(&a, total + 1);
+        char *p = buf;
+        for (size_t i = 0; i < arr.count; i++) {
+            const char *s = literal_value_to_print_string(arr.items[i]);
+            size_t slen = strlen(s);
+            memcpy(p, s, slen);
+            p += slen;
+            if (i + 1 < arr.count) {
+                memcpy(p, sep, sep_len);
+                p += sep_len;
+            }
+        }
+        *p = '\0';
+        return make_string(buf);
+    }
 
     if (strcmp(name, "shell") == 0) {
-#ifndef _WIN32
-        if (params.count < 1) {
-            runtime_errorf(node->pos, "shell() expects at least 1 argument");
-        }
-
-        // Build command string
-        Literal_Value command_val = eval(env, params.items[0]);
-        if (command_val.kind != LIT_STRING) {
-            runtime_errorf(node->pos, "shell() expects a string argument");
-        }
-        char *command = command_val.value.string;
-
-        // Capture stdout via popen
-        String_Builder stdout_sb = {0};
-        FILE *fp = popen(command, "r");
-        if (fp == NULL) {
-            runtime_errorf(node->pos, "shell() failed to execute command: %s", command);
-        }
-
-        char buf[256];
-        while (fgets(buf, sizeof(buf), fp) != NULL) {
-            sb_append_cstr(&stdout_sb, buf);
-        }
-        sb_append_null(&stdout_sb);
-
-        int status = pclose(fp);
-        int exit_code = WEXITSTATUS(status);
-
-        char *stdout_str = stdout_sb.items ? arena_strdup(&a, stdout_sb.items) : arena_strdup(&a, "");
-        sb_free(stdout_sb);
-
-        // Build result array: [stdout, stderr, exit_code]
-        Array_Literal result_array = {0};
-        Literal_Value stdout_elem = make_string(stdout_str);
-        Literal_Value stderr_elem = make_string(arena_strdup(&a, ""));
-        Literal_Value exit_elem = make_number_int((int64_t)exit_code);
-        arena_da_append(&a,&result_array, stdout_elem);
-        arena_da_append(&a,&result_array, stderr_elem);
-        arena_da_append(&a,&result_array, exit_elem);
-        result_array.pos = node->pos;
-
-        return make_array_literal(result_array);
-
-#endif /* ifdef _WIN32 */
-        TODO("shell not implemented for windows yet");
+        return eval_shell(env, function_call, node);
     }
 
     // User-defined function call
@@ -2837,9 +2982,12 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
 
     Arena *parent = &call_stack[call_depth - 1];
 
-    // Copy array return value to parent scope before freeing this scope
+    // Copy return values that reference callee-arena memory to parent scope
     if (result.kind == LIT_ARRAY_LITERAL) {
         result = literal_value_deep_copy(result, parent);
+    }
+    if (result.kind == LIT_STRING && result.value.string != NULL) {
+        result.value.string = arena_strdup(parent, result.value.string);
     }
     // Copy closure env chain to parent scope so it survives this scope being freed
     if (result.kind == LIT_FUNCTION && result.value.function.closure_env != NULL) {
@@ -2855,6 +3003,11 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
 }
 
 Literal_Value literal_value_deep_copy(Literal_Value v, Arena *target) {
+    if (v.kind == LIT_STRING) {
+        if (v.value.string != NULL)
+            v.value.string = arena_strdup(target, v.value.string);
+        return v;
+    }
     if (v.kind != LIT_ARRAY_LITERAL) return v;
     Array_Literal src = v.value.array_literal;
     Array_Literal dst = {0};
@@ -2884,7 +3037,9 @@ Environment *env_copy_to_arena(Environment *env, Arena *target, int min_depth) {
         for (size_t i = 0; i < env->count; i++) {
             copy->items[i] = env->items[i];
             Literal_Value *v = &copy->items[i].value;
-            if (v->kind == LIT_ARRAY_LITERAL) {
+            if (v->kind == LIT_STRING && v->value.string != NULL) {
+                v->value.string = arena_strdup(target, v->value.string);
+            } else if (v->kind == LIT_ARRAY_LITERAL) {
                 *v = literal_value_deep_copy(*v, target);
             } else if (v->kind == LIT_FUNCTION && v->value.function.closure_env != NULL) {
                 v->value.function.closure_env =
@@ -2988,6 +3143,9 @@ Literal_Value eval_array_insert(Environment *env, Expression *node) {
     }
 
     Literal_Value val = eval(env, insert.exp);
+    // Copy strings/arrays to root arena so they outlive the current function scope
+    if (call_depth > 0)
+        val = literal_value_deep_copy(val, &call_stack[0]);
 
     // Pad array with zeros for now
     while (array.count <= (size_t)idx) {

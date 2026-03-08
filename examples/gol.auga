@@ -1,5 +1,6 @@
-let rows = 8*8
-let columns = 8*8
+let dims = terminal_size()
+let rows = dims[0]
+let columns = dims[1]
 let ROW = 0
 let COL = 1
 
@@ -16,12 +17,12 @@ let init_board = fn value {
 }
 
 let print_board = fn board {
-    print("\033[2J")
-    print(board)
-    // for let row = 0 .. row < rows .. row + 1 {
-    //     print(board[row])
-    //     wait(10000000)
-    // }
+    print("\033[H")
+    let render = []
+    for let row = 0 .. row < rows .. row + 1 {
+        render[row] = join(board[row] "")
+    }
+    print(join(render "\n"))
 }
 
 let centered_text_line = fn text width fill_char {
@@ -126,6 +127,7 @@ let alive = fn neighbours {
         if count[0] == 2 { return "@" }
         if count[0] == 3 { return "@" }
         return "."
+        // return " "
     }
 
     if count[0] == 3 { return "@" }
@@ -179,23 +181,26 @@ let wait = fn iter {
 }
 
 let main = fn {
-    let board = init_board(".")
-    let backboard = init_board(".")
+    let board = init_board(" ")
+    let backboard = init_board(" ")
     let board = glider(board rows/4 columns/4)
     let board = glider(board handle_overflow(0 rows) handle_overflow(0 columns))
     let board = glider(board handle_overflow(rows/2 rows) handle_overflow(0 columns))
     let board = glider(board handle_overflow(0 rows) handle_overflow(columns/2 columns))
     let board = acorn(board rows/2 columns/2)
+    let board = acorn(board rows/2 - 30 columns/2 + 20)
+    let board = acorn(board rows/2 + 20 columns/2)
+    let board = acorn(board rows/2 + 20 columns/2 - 10)
 
     let boards = [board backboard]
 
     while true {
         step(boards[0] boards[1])
         print_board(boards[1])
-        wait(100)
+        wait(1000)
         step(boards[1] boards[0])
         print_board(boards[0])
-        wait(100)
+        wait(1000)
     }
 }
 

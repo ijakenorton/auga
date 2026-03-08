@@ -24,7 +24,7 @@ if %errorlevel% == 0 (
 where clang >nul 2>&1
 if %errorlevel% == 0 (
     echo CC: clang
-    clang -Wall -Wextra -Wswitch -o "%BUILD%\auga.exe" "%SCRIPT_DIR%auga.c"
+    clang -Wall -Wextra -Wswitch -O3 -o "%BUILD%\auga.exe" "%SCRIPT_DIR%auga.c"
     goto done
 )
 
