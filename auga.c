@@ -7,11 +7,20 @@
 #include <stdlib.h>
 #define NOB_IMPLEMENTATION
 #include "nob.h"
-#define ARENA_IMPLEMENTATION
-#include "arena.h"
+#define RINGBUF_IMPLEMENTATION
+#include "ringbuf.h"
 
-static Arena a = {0};    // scratch: function temporaries, rewound after each call
-static Arena perm = {0}; // permanent: array return values that outlive their call
+// Per-function-scope arena stack.
+// call_depth=0: parse/top-level scope
+// call_depth=N: Nth nested function call
+// if/for/while share the enclosing function's arena (same call_depth)
+#define MAX_CALL_DEPTH 256
+static Arena call_stack[MAX_CALL_DEPTH] = {0};
+static int call_depth = 0;
+
+// 'a' always refers to the current function scope's arena.
+// All existing arena_alloc(&a, ...) calls automatically use the right scope.
+#define a (call_stack[call_depth])
 /*
 //================================================================================\\
 //CONSTANTS_START
@@ -924,6 +933,7 @@ struct Environment {
     size_t count;
     size_t capacity;
     Environment *parent;
+    int depth; // call_depth when created, for closure copying
 };
 
 /*
@@ -2198,6 +2208,7 @@ Environment *env_create(Environment *parent) {
     env->count = 0;
     env->capacity = 0;
     env->parent = parent;
+    env->depth = call_depth;
     return env;
 }
 
@@ -2438,7 +2449,8 @@ bool eval_same(Literal_Value left, Literal_Value right) {
 // --- Forward declarations for mutually recursive eval ---
 Literal_Value eval(Environment *env, Expression *node);
 Literal_Value eval_block(Environment *env, Expressions exps);
-Literal_Value literal_value_deep_copy(Literal_Value v);
+Literal_Value literal_value_deep_copy(Literal_Value v, Arena *target);
+Environment *env_copy_to_arena(Environment *env, Arena *target, int min_depth);
 
 // --- Eval helpers ---
 
@@ -2802,7 +2814,10 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
 
     Function fn = var.value.value.function;
 
-    Arena_Mark mark = arena_snapshot(&a);
+    // Push a fresh arena scope for this function call
+    call_depth++;
+    ARENA_ASSERT(call_depth < MAX_CALL_DEPTH);
+
     Environment *new_env = env_create(fn.closure_env ? fn.closure_env : env);
 
     if (params.count != fn.args.count) {
@@ -2819,24 +2834,67 @@ Literal_Value eval_function_call(Environment *env, Expression *node) {
     if (result.kind == LIT_RETURN_VALUE) {
         result = *result.value.return_value.value;
     }
-    // Copy array returns to perm before rewinding scratch
+
+    Arena *parent = &call_stack[call_depth - 1];
+
+    // Copy array return value to parent scope before freeing this scope
     if (result.kind == LIT_ARRAY_LITERAL) {
-        result = literal_value_deep_copy(result);
+        result = literal_value_deep_copy(result, parent);
     }
-    arena_rewind(&a, mark);
+    // Copy closure env chain to parent scope so it survives this scope being freed
+    if (result.kind == LIT_FUNCTION && result.value.function.closure_env != NULL) {
+        result.value.function.closure_env =
+            env_copy_to_arena(result.value.function.closure_env, parent, call_depth);
+    }
+
+    // Return this function's pages to the shared pool
+    Arena_Mark empty = {NULL, 0};
+    arena_rewind(&a, empty);
+    call_depth--;
     return result;
 }
 
-Literal_Value literal_value_deep_copy(Literal_Value v) {
+Literal_Value literal_value_deep_copy(Literal_Value v, Arena *target) {
     if (v.kind != LIT_ARRAY_LITERAL) return v;
     Array_Literal src = v.value.array_literal;
     Array_Literal dst = {0};
     dst.pos = src.pos;
     for (size_t i = 0; i < src.count; i++) {
-        Literal_Value elem = literal_value_deep_copy(src.items[i]);
-        arena_da_append(&perm, &dst, elem);
+        Literal_Value elem = literal_value_deep_copy(src.items[i], target);
+        arena_da_append(target, &dst, elem);
     }
     return make_array_literal(dst);
+}
+
+// Copy an environment chain into target arena.
+// Envs at depth < min_depth are in a safe (longer-lived) arena, so kept as-is.
+// Envs at depth >= min_depth are in the arena being freed, so must be copied.
+Environment *env_copy_to_arena(Environment *env, Arena *target, int min_depth) {
+    if (env == NULL) return NULL;
+    if (env->depth < min_depth) return env; // safe, not being freed
+
+    Environment *copy = arena_alloc(target, sizeof(Environment));
+    copy->depth = env->depth;
+    copy->count = env->count;
+    copy->capacity = env->count;
+    copy->items = NULL;
+
+    if (env->count > 0) {
+        copy->items = arena_alloc(target, env->count * sizeof(Env_Entry));
+        for (size_t i = 0; i < env->count; i++) {
+            copy->items[i] = env->items[i];
+            Literal_Value *v = &copy->items[i].value;
+            if (v->kind == LIT_ARRAY_LITERAL) {
+                *v = literal_value_deep_copy(*v, target);
+            } else if (v->kind == LIT_FUNCTION && v->value.function.closure_env != NULL) {
+                v->value.function.closure_env =
+                    env_copy_to_arena(v->value.function.closure_env, target, min_depth);
+            }
+        }
+    }
+
+    copy->parent = env_copy_to_arena(env->parent, target, min_depth);
+    return copy;
 }
 
 // --- Arrays ---
@@ -3035,7 +3093,8 @@ int main(int argc, char **argv)
         }
     }
 
-    arena_free(&a);
+    arena_free(&call_stack[0]);
+    ringbuf_drain_pool();
     return 0;
 }
 
