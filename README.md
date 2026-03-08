@@ -1,44 +1,258 @@
+## WARNING THIS LANGUAGE IS UNDER DEVELOPMENT AND IS UNFINISHED
+
+However if you are still interested
+
 # Auga
 
-Early stage of Auga!
+Auga is a dynamically typed interpreted language, with the ultimate aim of being like Lua, an embeddable language with minimal dependencies written in C.
 
-As I wanted to pay homage to Odin, Auga is in reference to eye in Nordic. Either Odins lost eye, or the knowledge he gained.
-Dynamically scoped (may change to lexical, unsure), interpretted expression based language written in Odin!
+## Installation
 
-### Currently implemented:
-- Function decl
-- Function call
-- If
-- Else
-- While
-- For
-- Return
-- Add
-- Divide
-- Multiply
-- Less than
-- Greater than
-- Same (equality)
-- Print to stdout intrinsic
+Auga is currently being tested on both Windows and Linux. 
 
-## Build
+### The Linux build can be done by 
 
-Currently requires installed Odin compiler. Maybe some plans to vendor in the Odin compiler into the project.
+```bash
 
-```
-#clone the repo
-git clone git@github.com:ijakenorton/auga.git
-# or git clone https://github.com/ijakenorton/auga.git
-cd auga
-odin build .
+# This looks for a possible c compiler, and falls back 
+# to `tools/linux/tcc` embedded in the project if one is not available
+./build.sh
+
+# Alternatively, compile it with your favourite C compiler
+
+CC -o auga auga.c
+
+# My install is just, add it to path... OR don't, up to you!
+
+export PATH="$PATH:/mnt/c/Users/Jake/personal/auga/build"
 ```
 
-### To run the interpreter
+### The Windows build can be done by
+
+```bat
+
+# This looks for a possible c compiler, and falls back 
+# to the `tools/windows/tcc.exe` embedded in the project if one is not available
+./build.bat
+
+# Alternatively, compile it with your favourite C compiler
+CC -o auga auga.c
+```
+
+## Running
+
+The cli tool is simple for now and will just interpret .auga files if given one.
 
 ```
-#./auga <input_file.auga>
-./auga test.auga
-./auga test.auga debug
-# Debug flag prints out the outer most env state, can be useful though at a rudimentary stage
+# Runs the gol.auga (Conways Game of Life written in Auga)
+auga examples/gol.auga
+```
+
+### It looks like this
+
+```javascript
+let rows = 8*4
+let columns = 8*4
+let ROW = 0
+let COL = 1
+
+let init_board = fn value {
+    let board = []
+    for let i = 0 .. i < rows .. i + 1 {
+        let row = []
+        for let j = 0 .. j < columns .. j + 1 {
+            row[j] = value 
+        }
+        board[i] = row
+    }
+    return board
+}
+
+let print_board = fn board {
+    print("\033[2J")
+    print(board)
+    // for let row = 0 .. row < rows .. row + 1 {
+    //     print(board[row])
+    //     wait(10000000)
+    // }
+}
+
+let centered_text_line = fn text width fill_char {
+    let midpoint = width/2  + 1
+    let text_len = size(text)
+    let first_half_len = midpoint - text_len/2
+    let line = []
+
+
+    for let i = 0 .. i < first_half_len .. i + 1 {
+        line[i] = fill_char
+    }
+    line[first_half_len] = text
+
+    for let i = first_half_len + 1 .. i < width - text_len/2 .. i + 1 {
+        line[i] = fill_char
+    }
+
+    return line
+}
+
+let handle_overflow = fn val max {
+    if val == max { return val - max }
+    if val > max {
+        return val - max
+    }
+    if val < 0 {
+        return max + val
+    }
+    return val
+}
+
+let board_index = fn row col {
+    return [handle_overflow(row rows) handle_overflow(col columns)]
+}
+
+let get_neighbours_old = fn board row col {
+    let neighbours = []
+    let kernel = [
+        [row - 1 col - 1]
+        [row - 1 col]
+        [row - 1 col + 1]
+
+        [row col - 1]
+        [row col + 1]
+
+        [row + 1 col - 1]
+        [row + 1 col]
+        [row + 1 col + 1]
+
+        [row col]
+    ]
+    let index = 0
+    let start = row - 1
+    let end = row + 1
+    let kernel_size = size(kernel)
+    // print(kernel)
+    for let c = 0 .. c < size(kernel) .. c + 1 {
+        let cell_index = kernel[c]
+        let cell = board_index(cell_index[ROW] cell_index[COL])
+        let board_row = board[cell[ROW]]
+        neighbours[c] = board_row[cell[COL]]
+    }
+
+    return neighbours
+}
+  let get_neighbours = fn board row col {
+      let neighbours = []
+      let r0 = handle_overflow(row - 1 rows)
+      let r1 = handle_overflow(row + 1 rows)
+      let c0 = handle_overflow(col - 1 columns)
+      let c1 = handle_overflow(col + 1 columns)
+
+      let above = board[r0]
+      let same  = board[row]
+      let below = board[r1]
+
+      neighbours[0] = above[c0]
+      neighbours[1] = above[col]
+      neighbours[2] = above[c1]
+      neighbours[3] = same[c0]
+      neighbours[4] = same[c1]
+      neighbours[5] = below[c0]
+      neighbours[6] = below[col]
+      neighbours[7] = below[c1]
+      neighbours[8] = same[col]
+
+      return neighbours
+  }
+
+let alive = fn neighbours {
+    let count = [0]
+    for let cell = 0 .. cell < size(neighbours) - 1 .. cell + 1 {
+       if neighbours[cell] == "@" {
+           count[0] = count[0] + 1
+       }
+    }
+
+    let current = neighbours[8]
+
+    if current == "@" {
+        if count[0] == 2 { return "@" }
+        if count[0] == 3 { return "@" }
+        return "."
+    }
+
+    if count[0] == 3 { return "@" }
+    return " "
+}
+
+let blankboard = init_board(".")
+
+let step = fn backboard board {
+    for let i = 0..i < rows..i + 1 {
+        let front_row = board[i]
+        for let j = 0..j < columns..j + 1 {
+            front_row[j] = alive(get_neighbours(backboard i j))
+        }
+    }
+}
+
+let glider = fn board origin_row origin_col {
+    let row = board[handle_overflow(origin_row - 2 rows)]
+    row[origin_col] = "@"
+
+    let row = board[handle_overflow(origin_row - 1 rows)]
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+
+    let row = board[handle_overflow(origin_row rows)]
+    row[handle_overflow(origin_col - 1 columns)] = "@"
+    row[handle_overflow(origin_col columns)] = "@"
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+    return board
+}
+
+let acorn = fn board origin_row origin_col {
+    let row = board[handle_overflow(origin_row - 2 rows)]
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+
+    let row = board[handle_overflow(origin_row - 1 rows)]
+    row[handle_overflow(origin_col + 3 columns)] = "@"
+
+    let row = board[handle_overflow(origin_row rows)]
+    row[handle_overflow(origin_col columns)] = "@"
+    row[handle_overflow(origin_col + 1 columns)] = "@"
+    row[handle_overflow(origin_col + 4 columns)] = "@"
+    row[handle_overflow(origin_col + 5 columns)] = "@"
+    row[handle_overflow(origin_col + 6 columns)] = "@"
+    return board
+}
+
+let wait = fn iter {
+    for let i = 0..i<iter..i + 1 {
+    }
+}
+
+let main = fn {
+    let board = init_board(".")
+    let backboard = init_board(".")
+    let board = glider(board rows/4 columns/4)
+    let board = glider(board handle_overflow(0 rows) handle_overflow(0 columns))
+    let board = glider(board handle_overflow(rows/2 rows) handle_overflow(0 columns))
+    let board = glider(board handle_overflow(0 rows) handle_overflow(columns/2 columns))
+    let board = acorn(board rows/2 columns/2)
+
+    let boards = [board backboard]
+
+    while true {
+        step(boards[0] boards[1])
+        print_board(boards[1])
+        wait(100)
+        step(boards[1] boards[0])
+        print_board(boards[0])
+        wait(100)
+    }
+}
+
+
+main()
 ```
 
