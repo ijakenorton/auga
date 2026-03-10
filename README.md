@@ -48,6 +48,10 @@ The cli tool is simple for now and will just interpret .auga files if given one.
 auga examples/gol.auga
 ```
 
+### Demo
+
+<video src="artifacts/gol_compressed.mp4" controls autoplay loop muted></video>
+
 ### It looks like this
 
 ```javascript
