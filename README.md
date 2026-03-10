@@ -50,9 +50,10 @@ auga examples/gol.auga
 
 ### Demo
 
-<video src="artifacts/gol_compressed.mp4" controls autoplay loop muted></video>
 
-### It looks like this
+https://github.com/user-attachments/assets/8936a5f7-bbd5-4ec9-b256-a1b147de558f
+
+### Source code for the demo is below 
 
 ```javascript
 let rows = 8*4
